@@ -25,6 +25,21 @@ export default function DashboardPage() {
   const [selectedRole, setSelectedRole] = useState('')
   const [actionType, setActionType] = useState<'activate' | 'deactivate'>('activate')
 
+  // Workflow form states
+  const [showWorkflowForm, setShowWorkflowForm] = useState(false)
+  const [currentStep, setCurrentStep] = useState(1)
+  const [workflowFormData, setWorkflowFormData] = useState({
+    brandName: '',
+    marketplaceChannels: [] as string[],
+    dataSourceType: 'url' as 'url' | 'file',
+    sourceSheetUrl: '',
+    uploadedFile: null as File | null,
+    templateSourceType: 'url' as 'url' | 'file',
+    templateSheetUrl: '',
+    uploadedTemplateFile: null as File | null,
+    requirements: ''
+  })
+
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -115,6 +130,224 @@ export default function DashboardPage() {
     }
   }
 
+  // Workflow form handlers
+  const handleWorkflowFormChange = (field: string, value: string | string[] | File | null) => {
+    setWorkflowFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null
+    setWorkflowFormData(prev => ({
+      ...prev,
+      uploadedFile: file
+    }))
+  }
+
+  const handleTemplateFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null
+    setWorkflowFormData(prev => ({
+      ...prev,
+      uploadedTemplateFile: file
+    }))
+  }
+
+  const handleMarketplaceToggle = (marketplace: string) => {
+    setWorkflowFormData(prev => ({
+      ...prev,
+      marketplaceChannels: prev.marketplaceChannels.includes(marketplace)
+        ? prev.marketplaceChannels.filter(m => m !== marketplace)
+        : [...prev.marketplaceChannels, marketplace]
+    }))
+  }
+
+  // File upload utility function
+  const uploadFileToSupabase = async (file: File, bucket: string, path: string): Promise<string | null> => {
+    try {
+      const supabase = createClient()
+      
+      // Check if user is authenticated
+      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser()
+      if (authError || !currentUser) {
+        console.error('Authentication error:', authError)
+        throw new Error('User not authenticated')
+      }
+      
+      console.log('Upload attempt:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        bucket,
+        path,
+        userId: currentUser.id
+      })
+      
+      // Generate unique filename with user ID for better organization
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+      const filePath = `${path}/${currentUser.id}/${fileName}`
+      
+      console.log('Uploading to path:', filePath)
+      
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+      
+      if (error) {
+        console.error('Storage upload error:', error)
+        console.error('Error details:', {
+          message: error.message,
+          name: error.name,
+          cause: error.cause
+        })
+        throw error
+      }
+      
+      console.log('Upload successful:', data)
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(filePath)
+      
+      console.log('Public URL generated:', publicUrl)
+      return publicUrl
+    } catch (error) {
+      console.error('Error in uploadFileToSupabase:', error)
+      return null
+    }
+  }
+
+  // Handle workflow form submission
+  const handleSubmitWorkflow = async () => {
+    try {
+      const supabase = createClient()
+      
+      // Show loading state
+      const submitButton = document.querySelector('[data-submit-button]') as HTMLButtonElement
+      if (submitButton) {
+        submitButton.disabled = true
+        submitButton.textContent = 'Submitting...'
+      }
+      
+      // Prepare workflow data
+      let sourceFileUrl = workflowFormData.sourceSheetUrl
+      let templateFileUrl = workflowFormData.templateSheetUrl
+      
+      // Upload source file if user chose file upload
+      if (workflowFormData.dataSourceType === 'file' && workflowFormData.uploadedFile) {
+        console.log('Uploading source file...')
+        const uploadedSourceUrl = await uploadFileToSupabase(
+          workflowFormData.uploadedFile,
+          'workflow-files',
+          'source-files'
+        )
+        
+        if (!uploadedSourceUrl) {
+          alert('Failed to upload source file. Please try again.')
+          return
+        }
+        sourceFileUrl = uploadedSourceUrl
+      }
+      
+      // Upload template file if user chose file upload
+      if (workflowFormData.templateSourceType === 'file' && workflowFormData.uploadedTemplateFile) {
+        console.log('Uploading template file...')
+        const uploadedTemplateUrl = await uploadFileToSupabase(
+          workflowFormData.uploadedTemplateFile,
+          'workflow-files',
+          'template-files'
+        )
+        
+        if (!uploadedTemplateUrl) {
+          alert('Failed to upload template file. Please try again.')
+          return
+        }
+        templateFileUrl = uploadedTemplateUrl
+      }
+      
+      // Prepare workflow data for database insertion
+      const workflowData = {
+        user_id: user?.id,
+        organisation_id: profile?.organization_id,
+        brand_name: workflowFormData.brandName,
+        marketplace_channels: workflowFormData.marketplaceChannels,
+        data_source_type: workflowFormData.dataSourceType,
+        source_file_url: sourceFileUrl,
+        template_source_type: workflowFormData.templateSourceType,
+        template_file_url: templateFileUrl,
+        requirements: workflowFormData.requirements,
+        status: 'UNDER PROCESS',
+        created_at: new Date().toISOString()
+      }
+      
+      // Insert workflow data into database
+      const { data, error } = await supabase
+        .from('workflows')
+        .insert([workflowData])
+        .select()
+      
+      if (error) {
+        console.error('Error inserting workflow:', error)
+        alert('Failed to submit workflow. Please try again.')
+        return
+      }
+      
+      console.log('Workflow submitted successfully:', data)
+      alert('Workflow submitted successfully! We will process your request and get back to you soon.')
+      
+      // Reset form and close modal
+      resetWorkflowForm()
+      
+    } catch (error) {
+      console.error('Error submitting workflow:', error)
+      alert('An error occurred while submitting the workflow. Please try again.')
+    } finally {
+      // Reset button state
+      const submitButton = document.querySelector('[data-submit-button]') as HTMLButtonElement
+      if (submitButton) {
+        submitButton.disabled = false
+        submitButton.textContent = 'Submit Request'
+      }
+    }
+  }
+
+  const handleNextStep = () => {
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1)
+    } else if (currentStep === 4) {
+      // Submit the form
+      handleSubmitWorkflow()
+    }
+  }
+
+  const handlePrevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
+  const resetWorkflowForm = () => {
+    setShowWorkflowForm(false)
+    setCurrentStep(1)
+    setWorkflowFormData({
+      brandName: '',
+      marketplaceChannels: [],
+      dataSourceType: 'url',
+      sourceSheetUrl: '',
+      uploadedFile: null,
+      templateSourceType: 'url',
+      templateSheetUrl: '',
+      uploadedTemplateFile: null,
+      requirements: ''
+    })
+  }
+
   // Define navigation items based on permissions
   const getNavigationItems = () => {
     const permissions = profile?.permissions || []
@@ -147,8 +380,8 @@ export default function DashboardPage() {
       })
     }
 
-    // Workflows
-    if (permissions.includes('view_workflows') || permissions.includes('manage_workflows')) {
+    // Workflows - Show for users with ADD_WORKFLOW_RAW_DATA permission
+    if (permissions.includes('ADD_WORKFLOW_RAW_DATA')) {
       items.push({
         id: 'workflows',
         name: 'Workflows',
@@ -157,7 +390,7 @@ export default function DashboardPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         ),
-        permission: 'view_workflows'
+        permission: 'ADD_WORKFLOW_RAW_DATA'
       })
     }
 
@@ -1412,8 +1645,54 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Workflows Section */}
+          {activeTab === 'workflows' && (
+            <div className="space-y-6">
+              {/* Workflows Header */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-xl flex items-center justify-center shadow-lg">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">Workflows</h2>
+                      <p className="text-gray-600">Manage and create your workflow processes</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowWorkflowForm(true)}
+                    className="px-6 py-3 bg-gradient-to-r from-[#5146E5] to-[#7C3AED] hover:from-[#4338CA] hover:to-[#6D28D9] text-white font-medium rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span>Request New Workflow</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Workflows Content */}
+              {/* <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">This is workflow tab</h3>
+                  <p className="text-gray-600">
+                    Welcome to the Workflows section. Here you can manage and create workflow processes with your ADD_WORKFLOW_RAW_DATA permissions.
+                  </p>
+                </div>
+              </div> */}
+            </div>
+          )}
+
           {/* Other tab content placeholders */}
-          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && (
+          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && activeTab !== 'workflows' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
               <div className="text-center">
                 <h3 className="text-xl font-semibold text-gray-900 mb-2 capitalize">
@@ -1581,6 +1860,699 @@ export default function DashboardPage() {
               >
                 {actionType === 'activate' ? 'Activate' : 'Deactivate'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Request New Workflow Modal */}
+      {showWorkflowForm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            {/* Modal Header */}
+            <div className="relative bg-gradient-to-r from-[#5146E5] to-[#7C3AED] p-8 text-white">
+              <div className="absolute inset-0 bg-black/10"></div>
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white drop-shadow-sm">Request New Workflow</h3>
+                    <p className="text-white/80 text-sm mt-1">Step {currentStep} of 4 - Let's create something amazing</p>
+                  </div>
+                </div>
+                <button
+                  onClick={resetWorkflowForm}
+                  className="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Enhanced Progress Bar */}
+            <div className="px-8 py-6 bg-gradient-to-b from-gray-50 to-white border-b border-gray-100">
+              <div className="flex items-center justify-between max-w-2xl mx-auto">
+                {[
+                  { step: 1, title: 'Basic Info', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+                  { step: 2, title: 'Data Source', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+                  { step: 3, title: 'Upload Templates', icon: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12' },
+                  { step: 4, title: 'Describe Requirements', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' }
+                ].map((item, index) => (
+                  <div key={item.step} className="flex flex-col items-center relative">
+                    <div className={`relative w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
+                      item.step <= currentStep
+                        ? 'bg-gradient-to-br from-[#5146E5] to-[#7C3AED] text-white shadow-lg scale-110'
+                        : item.step === currentStep + 1
+                        ? 'bg-gradient-to-br from-blue-100 to-purple-100 text-[#5146E5] border-2 border-[#5146E5]/30'
+                        : 'bg-gray-100 text-gray-400'
+                    }`}>
+                      {item.step <= currentStep ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+                        </svg>
+                      )}
+                      {item.step === currentStep && (
+                        <div className="absolute -inset-1 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-full animate-pulse opacity-30"></div>
+                      )}
+                    </div>
+                    <span className={`mt-2 text-xs font-medium transition-colors duration-200 ${
+                      item.step <= currentStep
+                        ? 'text-[#5146E5]'
+                        : 'text-gray-500'
+                    }`}>
+                      {item.title}
+                    </span>
+                    {index < 3 && (
+                      <div className={`absolute top-6 left-1/2 w-24 h-0.5 -translate-y-1/2 transition-colors duration-300 ${
+                        item.step < currentStep ? 'bg-gradient-to-r from-[#5146E5] to-[#7C3AED]' : 'bg-gray-200'
+                      }`} style={{ marginLeft: '24px', zIndex: -1 }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Form Content */}
+            <div className="p-8 overflow-y-auto max-h-[60vh]">
+              {currentStep === 1 && (
+                <div className="space-y-8 animate-in fade-in-0 slide-in-from-right-4 duration-500">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h4 className="text-2xl font-bold text-gray-900 mb-2">Basic Information</h4>
+                    <p className="text-gray-600 max-w-md mx-auto">Let's start with the essentials. Tell us about your brand and where you want to sell.</p>
+                  </div>
+
+                  {/* Brand Name Field */}
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <label className="block text-sm font-semibold text-gray-800 mb-3">
+                      <span className="flex items-center space-x-2">
+                        <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        <span>Brand Name</span>
+                        <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={workflowFormData.brandName}
+                      onChange={(e) => handleWorkflowFormChange('brandName', e.target.value)}
+                      placeholder="Enter your brand name (e.g., Nike, Apple, etc.)"
+                      className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#5146E5] focus:border-[#5146E5] transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white font-medium text-lg shadow-sm hover:shadow-md"
+                    />
+                  </div>
+
+                  {/* Marketplace Channels Field */}
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <label className="block text-sm font-semibold text-gray-800 mb-3">
+                      <span className="flex items-center space-x-2">
+                        <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        <span>Marketplace Channels</span>
+                        <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    <p className="text-sm text-gray-600 mb-6">Choose where you want to showcase your products. You can select multiple platforms.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[
+                        { name: 'AMAZON', icon: '🛒', color: 'from-orange-400 to-yellow-500' },
+                        { name: 'FLIPKART', icon: '🛍️', color: 'from-blue-400 to-blue-600' },
+                        { name: 'MYNTRA', icon: '👗', color: 'from-pink-400 to-red-500' },
+                        { name: 'MEESHO', icon: '📱', color: 'from-green-400 to-emerald-500' },
+                        { name: 'SHOPIFY', icon: '🏪', color: 'from-purple-400 to-indigo-500' }
+                      ].map((marketplace) => (
+                        <label
+                          key={marketplace.name}
+                          className={`group relative flex items-center p-5 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                            workflowFormData.marketplaceChannels.includes(marketplace.name)
+                              ? 'border-[#5146E5] bg-gradient-to-br from-[#5146E5]/10 to-[#7C3AED]/10 shadow-lg'
+                              : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={workflowFormData.marketplaceChannels.includes(marketplace.name)}
+                            onChange={() => handleMarketplaceToggle(marketplace.name)}
+                            className="sr-only"
+                          />
+                          <div className={`w-6 h-6 rounded-lg border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                            workflowFormData.marketplaceChannels.includes(marketplace.name)
+                              ? 'border-[#5146E5] bg-[#5146E5] shadow-md'
+                              : 'border-gray-300 group-hover:border-gray-400'
+                          }`}>
+                            {workflowFormData.marketplaceChannels.includes(marketplace.name) && (
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-3">
+                            <span className="text-2xl">{marketplace.icon}</span>
+                            <span className="text-base font-semibold text-gray-800">{marketplace.name}</span>
+                          </div>
+                          {workflowFormData.marketplaceChannels.includes(marketplace.name) && (
+                            <div className="absolute top-2 right-2">
+                              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Data Source */}
+              {currentStep === 2 && (
+                <div className="space-y-8 animate-in fade-in-0 slide-in-from-right-4 duration-500">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <h4 className="text-2xl font-bold text-gray-900 mb-2">Data Source</h4>
+                    <p className="text-gray-600 max-w-md mx-auto">Connect your product data by providing a spreadsheet URL or uploading a file.</p>
+                  </div>
+
+                  {/* Data Source Type Selection */}
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <label className="block text-sm font-semibold text-gray-800 mb-4">
+                      <span className="flex items-center space-x-2">
+                        <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>Choose Data Source Type</span>
+                        <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label
+                        className={`group relative flex items-center p-6 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                          workflowFormData.dataSourceType === 'url'
+                            ? 'border-[#5146E5] bg-gradient-to-br from-[#5146E5]/10 to-[#7C3AED]/10 shadow-lg'
+                            : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="dataSourceType"
+                          value="url"
+                          checked={workflowFormData.dataSourceType === 'url'}
+                          onChange={(e) => handleWorkflowFormChange('dataSourceType', e.target.value)}
+                          className="sr-only"
+                        />
+                        <div className={`w-6 h-6 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                          workflowFormData.dataSourceType === 'url'
+                            ? 'border-[#5146E5] bg-[#5146E5] shadow-md'
+                            : 'border-gray-300 group-hover:border-gray-400'
+                        }`}>
+                          {workflowFormData.dataSourceType === 'url' && (
+                            <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                            </svg>
+                          </div>
+                          <div>
+                            <span className="text-base font-semibold text-gray-800">Sheet URL</span>
+                            <p className="text-sm text-gray-600">Connect via Google Sheets or Excel Online</p>
+                          </div>
+                        </div>
+                        {workflowFormData.dataSourceType === 'url' && (
+                          <div className="absolute top-3 right-3">
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                          </div>
+                        )}
+                      </label>
+
+                      <label
+                        className={`group relative flex items-center p-6 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                          workflowFormData.dataSourceType === 'file'
+                            ? 'border-[#5146E5] bg-gradient-to-br from-[#5146E5]/10 to-[#7C3AED]/10 shadow-lg'
+                            : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="dataSourceType"
+                          value="file"
+                          checked={workflowFormData.dataSourceType === 'file'}
+                          onChange={(e) => handleWorkflowFormChange('dataSourceType', e.target.value)}
+                          className="sr-only"
+                        />
+                        <div className={`w-6 h-6 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                          workflowFormData.dataSourceType === 'file'
+                            ? 'border-[#5146E5] bg-[#5146E5] shadow-md'
+                            : 'border-gray-300 group-hover:border-gray-400'
+                        }`}>
+                          {workflowFormData.dataSourceType === 'file' && (
+                            <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                          </div>
+                          <div>
+                            <span className="text-base font-semibold text-gray-800">Upload File</span>
+                            <p className="text-sm text-gray-600">Upload Excel, CSV, or JSON files</p>
+                          </div>
+                        </div>
+                        {workflowFormData.dataSourceType === 'file' && (
+                          <div className="absolute top-3 right-3">
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* URL Input */}
+                  {workflowFormData.dataSourceType === 'url' && (
+                    <div className="bg-gray-50 rounded-xl p-6 animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
+                      <label className="block text-sm font-semibold text-gray-800 mb-3">
+                        <span className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          <span>Source Sheet URL</span>
+                          <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                        </div>
+                        <input
+                          type="url"
+                          value={workflowFormData.sourceSheetUrl}
+                          onChange={(e) => handleWorkflowFormChange('sourceSheetUrl', e.target.value)}
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#5146E5] focus:border-[#5146E5] transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white font-medium shadow-sm hover:shadow-md"
+                        />
+                      </div>
+                      <p className="mt-3 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                        💡 <strong>Tip:</strong> Make sure your spreadsheet is publicly accessible or shared with appropriate permissions.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* File Upload */}
+                  {workflowFormData.dataSourceType === 'file' && (
+                    <div className="bg-gray-50 rounded-xl p-6 animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
+                      <label className="block text-sm font-semibold text-gray-800 mb-3">
+                        <span className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <span>Upload Data File</span>
+                          <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      <div className="mt-2 flex justify-center px-6 pt-8 pb-8 border-2 border-gray-300 border-dashed rounded-xl hover:border-[#5146E5] hover:bg-[#5146E5]/5 transition-all duration-300 group">
+                        <div className="space-y-2 text-center">
+                          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                          </div>
+                          <div className="flex text-base text-gray-700">
+                            <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-lg px-4 py-2 font-semibold text-[#5146E5] hover:text-[#4338CA] focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[#5146E5] shadow-sm hover:shadow-md transition-all duration-200">
+                              <span>Choose a file</span>
+                              <input
+                                id="file-upload"
+                                name="file-upload"
+                                type="file"
+                                className="sr-only"
+                                accept=".xlsx,.xls,.csv,.json"
+                                onChange={handleFileUpload}
+                              />
+                            </label>
+                            <p className="pl-2 self-center">or drag and drop</p>
+                          </div>
+                          <p className="text-sm text-gray-500">
+                            Excel (.xlsx, .xls), CSV, or JSON files up to 10MB
+                          </p>
+                          {workflowFormData.uploadedFile && (
+                            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex items-center justify-center space-x-3 text-green-700">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="font-medium">{workflowFormData.uploadedFile.name}</span>
+                                <span className="text-sm">({(workflowFormData.uploadedFile.size / 1024 / 1024).toFixed(2)} MB)</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 3: Upload Templates */}
+              {currentStep === 3 && (
+                <div className="space-y-8 animate-in fade-in-0 slide-in-from-right-4 duration-500">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                    </div>
+                    <h4 className="text-2xl font-bold text-gray-900 mb-2">Upload Templates</h4>
+                    <p className="text-gray-600 max-w-md mx-auto">Provide your template files to customize the output format and structure.</p>
+                  </div>
+
+                  {/* Template Source Type Selection */}
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <label className="block text-sm font-semibold text-gray-800 mb-4">
+                      <span className="flex items-center space-x-2">
+                        <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Choose Template Source Type</span>
+                        <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label
+                        className={`group relative flex items-center p-6 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                          workflowFormData.templateSourceType === 'url'
+                            ? 'border-[#5146E5] bg-gradient-to-br from-[#5146E5]/10 to-[#7C3AED]/10 shadow-lg'
+                            : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="templateSourceType"
+                          value="url"
+                          checked={workflowFormData.templateSourceType === 'url'}
+                          onChange={(e) => handleWorkflowFormChange('templateSourceType', e.target.value)}
+                          className="sr-only"
+                        />
+                        <div className={`w-6 h-6 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                          workflowFormData.templateSourceType === 'url'
+                            ? 'border-[#5146E5] bg-[#5146E5] shadow-md'
+                            : 'border-gray-300 group-hover:border-gray-400'
+                        }`}>
+                          {workflowFormData.templateSourceType === 'url' && (
+                            <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                            <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                            </svg>
+                          </div>
+                          <div>
+                            <span className="text-base font-semibold text-gray-800">Template URL</span>
+                            <p className="text-sm text-gray-600">Connect via Google Sheets or Excel Online</p>
+                          </div>
+                        </div>
+                        {workflowFormData.templateSourceType === 'url' && (
+                          <div className="absolute top-3 right-3">
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                          </div>
+                        )}
+                      </label>
+
+                      <label
+                        className={`group relative flex items-center p-6 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                          workflowFormData.templateSourceType === 'file'
+                            ? 'border-[#5146E5] bg-gradient-to-br from-[#5146E5]/10 to-[#7C3AED]/10 shadow-lg'
+                            : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="templateSourceType"
+                          value="file"
+                          checked={workflowFormData.templateSourceType === 'file'}
+                          onChange={(e) => handleWorkflowFormChange('templateSourceType', e.target.value)}
+                          className="sr-only"
+                        />
+                        <div className={`w-6 h-6 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                          workflowFormData.templateSourceType === 'file'
+                            ? 'border-[#5146E5] bg-[#5146E5] shadow-md'
+                            : 'border-gray-300 group-hover:border-gray-400'
+                        }`}>
+                          {workflowFormData.templateSourceType === 'file' && (
+                            <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                            <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                          </div>
+                          <div>
+                            <span className="text-base font-semibold text-gray-800">Upload Template</span>
+                            <p className="text-sm text-gray-600">Upload Excel, CSV, or JSON templates</p>
+                          </div>
+                        </div>
+                        {workflowFormData.templateSourceType === 'file' && (
+                          <div className="absolute top-3 right-3">
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Template URL Input */}
+                  {workflowFormData.templateSourceType === 'url' && (
+                    <div className="bg-gray-50 rounded-xl p-6 animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
+                      <label className="block text-sm font-semibold text-gray-800 mb-3">
+                        <span className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          <span>Template Sheet URL</span>
+                          <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                        </div>
+                        <input
+                          type="url"
+                          value={workflowFormData.templateSheetUrl}
+                          onChange={(e) => handleWorkflowFormChange('templateSheetUrl', e.target.value)}
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#5146E5] focus:border-[#5146E5] transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white font-medium shadow-sm hover:shadow-md"
+                        />
+                      </div>
+                      <p className="mt-3 text-sm text-gray-600 bg-purple-50 p-3 rounded-lg border border-purple-200">
+                        📋 <strong>Tip:</strong> Your template should contain the desired output format and column structure for the generated files.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Template File Upload */}
+                  {workflowFormData.templateSourceType === 'file' && (
+                    <div className="bg-gray-50 rounded-xl p-6 animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
+                      <label className="block text-sm font-semibold text-gray-800 mb-3">
+                        <span className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <span>Upload Template File</span>
+                          <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      <div className="mt-2 flex justify-center px-6 pt-8 pb-8 border-2 border-gray-300 border-dashed rounded-xl hover:border-[#5146E5] hover:bg-[#5146E5]/5 transition-all duration-300 group">
+                        <div className="space-y-2 text-center">
+                          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div className="flex text-base text-gray-700">
+                            <label htmlFor="template-file-upload" className="relative cursor-pointer bg-white rounded-lg px-4 py-2 font-semibold text-[#5146E5] hover:text-[#4338CA] focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[#5146E5] shadow-sm hover:shadow-md transition-all duration-200">
+                              <span>Choose template file</span>
+                              <input
+                                id="template-file-upload"
+                                name="template-file-upload"
+                                type="file"
+                                className="sr-only"
+                                accept=".xlsx,.xls,.csv,.json"
+                                onChange={handleTemplateFileUpload}
+                              />
+                            </label>
+                            <p className="pl-2 self-center">or drag and drop</p>
+                          </div>
+                          <p className="text-sm text-gray-500">
+                            Template files: Excel (.xlsx, .xls), CSV, or JSON up to 10MB
+                          </p>
+                          {workflowFormData.uploadedTemplateFile && (
+                            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex items-center justify-center space-x-3 text-green-700">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="font-medium">{workflowFormData.uploadedTemplateFile.name}</span>
+                                <span className="text-sm">({(workflowFormData.uploadedTemplateFile.size / 1024 / 1024).toFixed(2)} MB)</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 4: Describe Requirements */}
+              {currentStep === 4 && (
+                <div className="space-y-8 animate-in fade-in-0 slide-in-from-right-4 duration-500">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </div>
+                    <h4 className="text-2xl font-bold text-gray-900 mb-2">Describe Requirements</h4>
+                    <p className="text-gray-600 max-w-md mx-auto">Tell us about your specific requirements, preferences, and any special instructions for this workflow.</p>
+                  </div>
+
+                  {/* Requirements Text Area */}
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <label className="block text-sm font-semibold text-gray-800 mb-3">
+                      <span className="flex items-center space-x-2">
+                        <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <span>Requirements & Instructions</span>
+                        <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    <textarea
+                      value={workflowFormData.requirements}
+                      onChange={(e) => handleWorkflowFormChange('requirements', e.target.value)}
+                      placeholder="Please describe your requirements in detail. Include any specific formatting needs, data transformations, output preferences, or special instructions for this workflow..."
+                      rows={8}
+                      className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#5146E5] focus:border-[#5146E5] transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white font-medium shadow-sm hover:shadow-md resize-vertical min-h-[200px]"
+                    />
+                    <div className="mt-3 flex items-center justify-between">
+                      <p className="text-sm text-gray-600">
+                        Be as specific as possible to help us create the perfect workflow for you.
+                      </p>
+                      <span className="text-xs text-gray-500">
+                        {workflowFormData.requirements.length} characters
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Helpful Tips */}
+                  <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h5 className="text-sm font-semibold text-blue-900 mb-2">💡 What to include in your requirements:</h5>
+                        <ul className="text-sm text-blue-800 space-y-1">
+                          <li>• Specific output format preferences</li>
+                          <li>• Data validation rules or constraints</li>
+                          <li>• Custom field mappings or transformations</li>
+                          <li>• Marketplace-specific requirements</li>
+                          <li>• Quality standards or approval workflows</li>
+                          <li>• Timeline expectations and priorities</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Placeholder for future steps */}
+              {currentStep > 4 && (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">Step {currentStep}</h4>
+                  <p className="text-gray-600">This step will be implemented next.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Enhanced Modal Footer */}
+            <div className="flex items-center justify-between p-8 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+              <button
+                onClick={handlePrevStep}
+                disabled={currentStep === 1}
+                className="flex items-center space-x-2 px-6 py-3 text-gray-700 bg-white border-2 border-gray-200 rounded-xl font-semibold transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 disabled:hover:shadow-none"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span>Previous</span>
+              </button>
+              
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={resetWorkflowForm}
+                  className="px-6 py-3 text-gray-700 bg-white border-2 border-gray-200 rounded-xl font-semibold transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleNextStep}
+                  data-submit-button
+                  disabled={
+                    (currentStep === 1 && (!workflowFormData.brandName || workflowFormData.marketplaceChannels.length === 0)) ||
+                    (currentStep === 2 && (
+                      (workflowFormData.dataSourceType === 'url' && !workflowFormData.sourceSheetUrl) ||
+                      (workflowFormData.dataSourceType === 'file' && !workflowFormData.uploadedFile)
+                    )) ||
+                    (currentStep === 3 && (
+                      (workflowFormData.templateSourceType === 'url' && !workflowFormData.templateSheetUrl) ||
+                      (workflowFormData.templateSourceType === 'file' && !workflowFormData.uploadedTemplateFile)
+                    )) ||
+                    (currentStep === 4 && !workflowFormData.requirements.trim())
+                  }
+                  className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-[#5146E5] to-[#7C3AED] hover:from-[#4338CA] hover:to-[#6D28D9] text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-lg"
+                >
+                  <span>{currentStep === 4 ? 'Submit Request' : 'Continue'}</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={currentStep === 4 ? "M5 13l4 4L19 7" : "M9 5l7 7-7 7"} />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
