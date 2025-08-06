@@ -40,6 +40,11 @@ export default function DashboardPage() {
     requirements: ''
   })
 
+  // Workflows data states
+  const [workflows, setWorkflows] = useState<any[]>([])
+  const [workflowsLoading, setWorkflowsLoading] = useState(true)
+  const [workflowsError, setWorkflowsError] = useState<string | null>(null)
+
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -51,6 +56,45 @@ export default function DashboardPage() {
       router.push('/auth')
     }
   }, [user, loading, router])
+
+  // Fetch workflows when user and profile are available
+  useEffect(() => {
+    if (user && profile) {
+      fetchWorkflows()
+    }
+  }, [user, profile])
+
+  // Function to fetch workflows
+  const fetchWorkflows = async () => {
+    if (!user?.id || !profile?.organization_id) return
+    
+    try {
+      setWorkflowsLoading(true)
+      setWorkflowsError(null)
+      
+      const supabase = createClient()
+      
+      // Fetch workflows for the current user's organization
+      const { data, error } = await supabase
+        .from('workflows')
+        .select('*')
+        .eq('organisation_id', profile.organization_id)
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('Error fetching workflows:', error)
+        setWorkflowsError('Failed to load workflows')
+        return
+      }
+      
+      setWorkflows(data || [])
+    } catch (error) {
+      console.error('Error in fetchWorkflows:', error)
+      setWorkflowsError('An error occurred while loading workflows')
+    } finally {
+      setWorkflowsLoading(false)
+    }
+  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -299,10 +343,12 @@ export default function DashboardPage() {
       }
       
       console.log('Workflow submitted successfully:', data)
-      alert('Workflow submitted successfully! We will process your request and get back to you soon.')
       
       // Reset form and close modal
       resetWorkflowForm()
+      
+      // Refresh workflows list
+      fetchWorkflows()
       
     } catch (error) {
       console.error('Error submitting workflow:', error)
@@ -1674,20 +1720,132 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Workflows Content */}
-              {/* <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
+              {/* Workflows Table */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Your Workflows</h3>
+                    <div className="text-sm text-gray-500">
+                      {workflows.length} workflow{workflows.length !== 1 ? 's' : ''} found
+                    </div>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">This is workflow tab</h3>
-                  <p className="text-gray-600">
-                    Welcome to the Workflows section. Here you can manage and create workflow processes with your ADD_WORKFLOW_RAW_DATA permissions.
-                  </p>
                 </div>
-              </div> */}
+                
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marketplaces</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {workflowsLoading ? (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#5146E5]"></div>
+                              <span>Loading workflows...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : workflowsError ? (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-8 text-center text-red-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                              <span>{workflowsError}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : workflows.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex flex-col items-center space-y-3">
+                              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-gray-500 font-medium">No workflows found</p>
+                                <p className="text-sm text-gray-400 mt-1">Create your first workflow to get started</p>
+                              </div>
+                              <button
+                                onClick={() => setShowWorkflowForm(true)}
+                                className="px-4 py-2 bg-[#5146E5] hover:bg-[#4338CA] text-white rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                <span>Create Workflow</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        workflows.map((workflow, index) => {
+                          const statusColors = {
+                            'ACTIVE': 'bg-green-100 text-green-800',
+                            'INACTIVE': 'bg-gray-100 text-gray-800',
+                            'UNDER PROCESS': 'bg-yellow-100 text-yellow-800'
+                          }
+                          
+                          const statusColor = statusColors[workflow.status as keyof typeof statusColors] || statusColors['UNDER PROCESS']
+                          
+                          return (
+                            <tr key={workflow.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="w-10 h-10 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                                    {workflow.brand_name.substring(0, 2).toUpperCase()}
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">{workflow.brand_name}</div>
+                                    <div className="text-sm text-gray-500">ID: {workflow.id.substring(0, 8)}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex flex-wrap gap-1">
+                                  {workflow.marketplace_channels.slice(0, 2).map((channel: string) => (
+                                    <span key={channel} className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                      {channel}
+                                    </span>
+                                  ))}
+                                  {workflow.marketplace_channels.length > 2 && (
+                                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                      +{workflow.marketplace_channels.length - 2}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
+                                  {workflow.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(workflow.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1708,157 +1866,409 @@ export default function DashboardPage() {
       </div>
     </div>
 
-      {/* Assign Role Modal */}
+      {/* Enhanced Assign Role Modal */}
       {showAssignRoleModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Assign Role</h3>
-              <button
-                onClick={() => setShowAssignRoleModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            {selectedMember && (
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  Assigning role to: <span className="font-medium text-gray-900">{selectedMember.email}</span>
-                </p>
-                <p className="text-sm text-gray-500">
-                  Current role: <span className="font-medium">{selectedMember.role || 'No Role'}</span>
-                </p>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
+            {/* Modal Header */}
+            <div className="relative p-6 rounded-t-2xl text-white bg-gradient-to-r from-blue-500 to-indigo-600">
+              <div className="absolute inset-0 bg-black/10 rounded-t-2xl"></div>
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white drop-shadow-sm">Assign Role</h3>
+                    <p className="text-white/80 text-sm">Update member permissions</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAssignRoleModal(false)}
+                  className="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-            )}
-
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select New Role
-              </label>
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5146E5] focus:border-transparent bg-white text-gray-900 opacity-100"
-              >
-                <option value="">Select a role...</option>
-                {/* Check if the selected member is from external team (different organization) */}
-                {selectedMember && selectedMember.organization_id !== profile?.organization_id ? (
-                  // External team member roles
-                  <>
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="ANALYST">ANALYST</option>
-                    <option value="EDITOR">EDITOR</option>
-                  </>
-                ) : (
-                  // Internal team member roles - different roles based on user category
-                  profile?.category === 'CLIENT' ? (
-                    // CLIENT users can assign these roles to their internal team
-                    <>
-                      <option value="ADMIN">ADMIN</option>
-                      <option value="ANALYST">ANALYST</option>
-                      <option value="EDITOR">EDITOR</option>
-                    </>
-                  ) : (
-                    // PROVIDER users can assign these roles to their internal team
-                    <>
-                      <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                      <option value="APPROVER">APPROVER</option>
-                      <option value="BUILDER">BUILDER</option>
-                    </>
-                  )
-                )}
-              </select>
             </div>
 
-            <div className="flex items-center space-x-3">
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {selectedMember && (
+                <>
+                  {/* Member Profile Card */}
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-full flex items-center justify-center text-white font-medium">
+                        {selectedMember.email.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-gray-600">Member:</span>
+                          <span className="font-semibold text-gray-900">{selectedMember.email}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-sm font-medium text-gray-600">Current Role:</span>
+                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
+                            selectedMember.role === 'PENDING'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : selectedMember.role
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {selectedMember.role || 'No Role'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Role Selection */}
+                  <div className="space-y-4">
+                    <label className="block text-sm font-semibold text-gray-800">
+                      <span className="flex items-center space-x-2">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                        <span>Select New Role</span>
+                        <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    
+                    <div className="space-y-3">
+                      {/* Role Options */}
+                      {selectedMember && selectedMember.organization_id !== profile?.organization_id ? (
+                        // External team member roles
+                        <>
+                          {['ADMIN', 'ANALYST', 'EDITOR'].map((role) => (
+                            <label
+                              key={role}
+                              className={`group relative flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-md ${
+                                selectedRole === role
+                                  ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg'
+                                  : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="role"
+                                value={role}
+                                checked={selectedRole === role}
+                                onChange={(e) => setSelectedRole(e.target.value)}
+                                className="sr-only"
+                              />
+                              <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                                selectedRole === role
+                                  ? 'border-blue-500 bg-blue-500 shadow-md'
+                                  : 'border-gray-300 group-hover:border-gray-400'
+                              }`}>
+                                {selectedRole === role && (
+                                  <div className="w-2 h-2 bg-white rounded-full"></div>
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-base font-semibold text-gray-800">{role}</span>
+                                  {selectedRole === role && (
+                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  {role === 'ADMIN' && 'Full access to manage organization and workflows'}
+                                  {role === 'ANALYST' && 'Read-only access to workflows and analytics'}
+                                  {role === 'EDITOR' && 'Can manage workflows and access most features'}
+                                </p>
+                              </div>
+                            </label>
+                          ))}
+                        </>
+                      ) : (
+                        // Internal team member roles - different roles based on user category
+                        profile?.category === 'CLIENT' ? (
+                          // CLIENT users can assign these roles to their internal team
+                          <>
+                            {['ADMIN', 'ANALYST', 'EDITOR'].map((role) => (
+                              <label
+                                key={role}
+                                className={`group relative flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-md ${
+                                  selectedRole === role
+                                    ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg'
+                                    : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="role"
+                                  value={role}
+                                  checked={selectedRole === role}
+                                  onChange={(e) => setSelectedRole(e.target.value)}
+                                  className="sr-only"
+                                />
+                                <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                                  selectedRole === role
+                                    ? 'border-blue-500 bg-blue-500 shadow-md'
+                                    : 'border-gray-300 group-hover:border-gray-400'
+                                }`}>
+                                  {selectedRole === role && (
+                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-base font-semibold text-gray-800">{role}</span>
+                                    {selectedRole === role && (
+                                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    {role === 'ADMIN' && 'Full access to manage organization and workflows'}
+                                    {role === 'ANALYST' && 'Read-only access to workflows and analytics'}
+                                    {role === 'EDITOR' && 'Can manage workflows and access most features'}
+                                  </p>
+                                </div>
+                              </label>
+                            ))}
+                          </>
+                        ) : (
+                          // PROVIDER users can assign these roles to their internal team
+                          <>
+                            {['SUPER_ADMIN', 'APPROVER', 'BUILDER'].map((role) => (
+                              <label
+                                key={role}
+                                className={`group relative flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-md ${
+                                  selectedRole === role
+                                    ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg'
+                                    : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="role"
+                                  value={role}
+                                  checked={selectedRole === role}
+                                  onChange={(e) => setSelectedRole(e.target.value)}
+                                  className="sr-only"
+                                />
+                                <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                                  selectedRole === role
+                                    ? 'border-blue-500 bg-blue-500 shadow-md'
+                                    : 'border-gray-300 group-hover:border-gray-400'
+                                }`}>
+                                  {selectedRole === role && (
+                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-base font-semibold text-gray-800">{role}</span>
+                                    {selectedRole === role && (
+                                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    {role === 'SUPER_ADMIN' && 'Ultimate access to all system features and management'}
+                                    {role === 'APPROVER' && 'Can review and approve workflows and team actions'}
+                                    {role === 'BUILDER' && 'Can create and modify workflows and system configurations'}
+                                  </p>
+                                </div>
+                              </label>
+                            ))}
+                          </>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Confirmation Section */}
+                  {selectedRole && (
+                    <div className="rounded-xl p-4 border-l-4 bg-blue-50 border-blue-400 animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
+                      <div className="flex items-start space-x-3">
+                        <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-blue-800">Ready to Assign Role</p>
+                          <p className="text-sm text-blue-700 mt-1">
+                            {selectedMember.email} will be assigned the <strong>{selectedRole}</strong> role with corresponding permissions.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
               <button
                 onClick={() => setShowAssignRoleModal(false)}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors duration-200"
+                className="px-6 py-3 text-gray-700 bg-white border-2 border-gray-200 rounded-xl font-semibold transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-md"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmAssignRole}
                 disabled={!selectedRole}
-                className="flex-1 px-4 py-2 bg-[#5146E5] hover:bg-[#4338CA] text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-3 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-lg"
               >
-                Assign Role
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span>Assign Role</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Status Toggle Modal */}
+      {/* Enhanced Status Toggle Modal */}
       {showStatusModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {actionType === 'activate' ? 'Activate' : 'Deactivate'} Account
-              </h3>
-              <button
-                onClick={() => setShowStatusModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            {selectedMember && (
-              <div className="mb-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                    actionType === 'activate' ? 'bg-green-100' : 'bg-red-100'
-                  }`}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
+            {/* Modal Header */}
+            <div className={`relative p-6 rounded-t-2xl text-white ${
+              actionType === 'activate'
+                ? 'bg-gradient-to-r from-green-500 to-emerald-600'
+                : 'bg-gradient-to-r from-red-500 to-rose-600'
+            }`}>
+              <div className="absolute inset-0 bg-black/10 rounded-t-2xl"></div>
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
                     {actionType === 'activate' ? (
-                      <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     ) : (
-                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                       </svg>
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{selectedMember.email}</p>
-                    <p className="text-sm text-gray-500">
-                      Current status: {selectedMember.status === 1 ? 'Active' : 'Inactive'}
+                    <h3 className="text-xl font-bold text-white drop-shadow-sm">
+                      {actionType === 'activate' ? 'Activate Account' : 'Deactivate Account'}
+                    </h3>
+                    <p className="text-white/80 text-sm">
+                      {actionType === 'activate' ? 'Grant system access' : 'Revoke system access'}
                     </p>
                   </div>
                 </div>
-                
-                <p className="text-sm text-gray-600">
-                  Are you sure you want to {actionType} this account?
-                  {actionType === 'deactivate' && ' The user will lose access to the system.'}
-                  {actionType === 'activate' && ' The user will regain access to the system.'}
-                </p>
+                <button
+                  onClick={() => setShowStatusModal(false)}
+                  className="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-            )}
+            </div>
 
-            <div className="flex items-center space-x-3">
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {selectedMember && (
+                <>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white font-medium">
+                        {selectedMember.email.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-gray-600">Member:</span>
+                          <span className="font-semibold text-gray-900">{selectedMember.email}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-sm font-medium text-gray-600">Current Status:</span>
+                          <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
+                            selectedMember.status === 1
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            <svg className="w-2 h-2 mr-1" fill="currentColor" viewBox="0 0 8 8">
+                              <circle cx="4" cy="4" r="3" />
+                            </svg>
+                            {selectedMember.status === 1 ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`rounded-xl p-4 border-l-4 ${
+                    actionType === 'activate'
+                      ? 'bg-green-50 border-green-400'
+                      : 'bg-red-50 border-red-400'
+                  }`}>
+                    <div className="flex items-start space-x-3">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                        actionType === 'activate' ? 'bg-green-100' : 'bg-red-100'
+                      }`}>
+                        {actionType === 'activate' ? (
+                          <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3 h-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-semibold ${
+                          actionType === 'activate' ? 'text-green-800' : 'text-red-800'
+                        }`}>
+                          {actionType === 'activate' ? 'Confirm Account Activation' : 'Confirm Account Deactivation'}
+                        </p>
+                        <p className={`text-sm mt-1 ${
+                          actionType === 'activate' ? 'text-green-700' : 'text-red-700'
+                        }`}>
+                          {actionType === 'activate'
+                            ? 'This user will regain full access to the system and all associated features.'
+                            : 'This user will lose access to the system and will not be able to log in or perform any actions.'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
               <button
                 onClick={() => setShowStatusModal(false)}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors duration-200"
+                className="px-6 py-3 text-gray-700 bg-white border-2 border-gray-200 rounded-xl font-semibold transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-md"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmToggleStatus}
-                className={`flex-1 px-4 py-2 text-white rounded-lg font-medium transition-colors duration-200 ${
+                className={`px-6 py-3 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-2 ${
                   actionType === 'activate'
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : 'bg-red-600 hover:bg-red-700'
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700'
+                    : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700'
                 }`}
               >
-                {actionType === 'activate' ? 'Activate' : 'Deactivate'}
+                {actionType === 'activate' ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                )}
+                <span>{actionType === 'activate' ? 'Activate Account' : 'Deactivate Account'}</span>
               </button>
             </div>
           </div>
