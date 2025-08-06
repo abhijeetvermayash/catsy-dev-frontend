@@ -607,8 +607,8 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Provider Category - Two Sections (Vertical Layout) */}
-                {profile?.category === 'PROVIDER' && (
+                {/* Provider and Client Categories - Two Sections (Vertical Layout) */}
+                {(profile?.category === 'PROVIDER' || profile?.category === 'CLIENT') && (
                   <div className="space-y-8">
                     {/* Internal Team Management Section */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -1003,8 +1003,9 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    {/* External Team Management Section */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    {/* External Team Management Section - Only for PROVIDER */}
+                    {profile?.category === 'PROVIDER' && (
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                       <div className="flex items-center space-x-3 mb-6">
                         <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                           <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1183,11 +1184,21 @@ export default function DashboardPage() {
                                       </td>
                                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div className="flex items-center space-x-2">
-                                          <button className="text-green-600 hover:text-green-900">View</button>
-                                          <button className="text-gray-400 hover:text-gray-600">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                                            </svg>
+                                          <button
+                                            onClick={() => handleAssignRole(member)}
+                                            className="text-blue-600 hover:text-blue-900 font-medium"
+                                          >
+                                            Assign Role
+                                          </button>
+                                          <button
+                                            onClick={() => handleToggleStatus(member)}
+                                            className={`font-medium ${
+                                              member.status === 1
+                                                ? 'text-red-600 hover:text-red-900'
+                                                : 'text-green-600 hover:text-green-900'
+                                            }`}
+                                          >
+                                            {member.status === 1 ? 'Deactivate' : 'Activate'}
                                           </button>
                                         </div>
                                       </td>
@@ -1200,95 +1211,227 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              )}
 
-                {/* Client Category - Single Section */}
-                {profile?.category === 'CLIENT' && (
-                  <div className="max-w-2xl mx-auto">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 hover:shadow-md transition-shadow duration-200">
-                      <div className="text-center mb-6">
-                        <div className="w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-xl flex items-center justify-center shadow-lg mx-auto mb-4">
-                          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                          </svg>
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">Manage Team</h3>
-                        <p className="text-gray-600">Manage your organization's team members</p>
-                      </div>
-                      
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="text-center p-4 bg-gray-50 rounded-lg">
-                            <div className="text-2xl font-bold text-[#5146E5] mb-1">15</div>
-                            <div className="text-sm text-gray-600">Total Members</div>
-                          </div>
-                          <div className="text-center p-4 bg-gray-50 rounded-lg">
-                            <div className="text-2xl font-bold text-green-600 mb-1">12</div>
-                            <div className="text-sm text-gray-600">Active Members</div>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-3">
-                          <button className="w-full bg-gradient-to-r from-[#5146E5] to-[#7C3AED] hover:from-[#4338CA] hover:to-[#6D28D9] text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02]">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            <span>Add Team Member</span>
-                          </button>
-                          
-                          <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-4 rounded-lg transition-colors duration-200">
-                            View All Team Members
-                          </button>
-                          
-                          <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-4 rounded-lg transition-colors duration-200">
-                            Team Settings
-                          </button>
-                        </div>
-                      </div>
+              {/* Fallback for other categories */}
+              {profile?.category && profile.category !== 'PROVIDER' && profile.category !== 'CLIENT' && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Team Management</h3>
+                    <p className="text-gray-600">
+                      Team management features are being configured for your category: {profile.category}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Account Settings Section */}
+          {activeTab === 'account-settings' && (
+            <div className="space-y-6">
+              {/* Account Settings Header */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Account Settings</h2>
+                    <p className="text-gray-600">Manage your account information and preferences</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* User Information Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* User Profile Card */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-full flex items-center justify-center shadow-lg">
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Profile Information</h3>
+                      <p className="text-sm text-gray-500">Your account details</p>
                     </div>
                   </div>
-                )}
-
-                {/* Fallback for other categories */}
-                {profile?.category && profile.category !== 'PROVIDER' && profile.category !== 'CLIENT' && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">Team Management</h3>
-                      <p className="text-gray-600">
-                        Team management features are being configured for your category: {profile.category}
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Full Name</p>
+                      <p className="text-gray-900">
+                        {user?.user_metadata?.first_name && user?.user_metadata?.last_name
+                          ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}`
+                          : user?.email?.split('@')[0] || 'Not Set'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Email Address</p>
+                      <p className="text-gray-900">{user?.email || 'Not Available'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Organization</p>
+                      <p className="text-gray-900">
+                        {user?.user_metadata?.organisation_name || 'Not Set'}
                       </p>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
 
-            {/* Other tab content placeholders */}
-            {activeTab !== 'dashboard' && activeTab !== 'team' && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-                <div className="text-center">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2 capitalize">
-                    {activeTab.replace('-', ' ')}
-                  </h3>
-                  <p className="text-gray-600">
-                    This section is coming soon. Content for {activeTab.replace('-', ' ')} will be implemented here.
-                  </p>
+                {/* Role & Status Card */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Role & Status</h3>
+                      <p className="text-sm text-gray-500">Your current permissions</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Current Role</p>
+                      <div className="flex items-center space-x-2">
+                        <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                          profile?.role === 'PENDING'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {profileLoading ? 'Loading...' : (profile?.role || 'Not Assigned')}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Account Status</p>
+                      <div className="flex items-center space-x-2">
+                        <span className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full ${
+                          profile?.status === 1
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          <svg className="w-2 h-2 mr-2" fill="currentColor" viewBox="0 0 8 8">
+                            <circle cx="4" cy="4" r="3" />
+                          </svg>
+                          {profile?.status === 1 ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Category</p>
+                      <p className="text-gray-900 capitalize">
+                        {profileLoading ? 'Loading...' : (profile?.category || 'Not Set')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Account Details Card */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center shadow-lg">
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Account Details</h3>
+                      <p className="text-sm text-gray-500">Membership information</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Member Since</p>
+                      <p className="text-gray-900">
+                        {user?.created_at
+                          ? new Date(user.created_at).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })
+                          : 'Not Available'
+                        }
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Account ID</p>
+                      <p className="text-gray-900 font-mono text-sm">
+                        {user?.id ? user.id.substring(0, 8) + '...' : 'Not Available'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Permissions</p>
+                      <p className="text-gray-900">
+                        {profile?.permissions ? `${profile.permissions.length} granted` : '0 granted'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
+
+              {/* Logout Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Sign Out</h3>
+                      <p className="text-sm text-gray-500">Securely log out of your account</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleSignOut}
+                    className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Other tab content placeholders */}
+          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2 capitalize">
+                  {activeTab.replace('-', ' ')}
+                </h3>
+                <p className="text-gray-600">
+                  This section is coming soon. Content for {activeTab.replace('-', ' ')} will be implemented here.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+    </div>
 
       {/* Assign Role Modal */}
       {showAssignRoleModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Assign Role</h3>
@@ -1320,12 +1463,35 @@ export default function DashboardPage() {
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5146E5] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5146E5] focus:border-transparent bg-white text-gray-900 opacity-100"
               >
                 <option value="">Select a role...</option>
-                <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                <option value="APPROVER">APPROVER</option>
-                <option value="BUILDER">BUILDER</option>
+                {/* Check if the selected member is from external team (different organization) */}
+                {selectedMember && selectedMember.organization_id !== profile?.organization_id ? (
+                  // External team member roles
+                  <>
+                    <option value="ADMIN">ADMIN</option>
+                    <option value="ANALYST">ANALYST</option>
+                    <option value="EDITOR">EDITOR</option>
+                  </>
+                ) : (
+                  // Internal team member roles - different roles based on user category
+                  profile?.category === 'CLIENT' ? (
+                    // CLIENT users can assign these roles to their internal team
+                    <>
+                      <option value="ADMIN">ADMIN</option>
+                      <option value="ANALYST">ANALYST</option>
+                      <option value="EDITOR">EDITOR</option>
+                    </>
+                  ) : (
+                    // PROVIDER users can assign these roles to their internal team
+                    <>
+                      <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                      <option value="APPROVER">APPROVER</option>
+                      <option value="BUILDER">BUILDER</option>
+                    </>
+                  )
+                )}
               </select>
             </div>
 
@@ -1350,7 +1516,7 @@ export default function DashboardPage() {
 
       {/* Status Toggle Modal */}
       {showStatusModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
