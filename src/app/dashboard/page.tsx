@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useUserProfile } from '@/hooks/useUserProfile'
 import { useTeamMembers } from '@/hooks/useTeamMembers'
+import { useExternalTeamMembers } from '@/hooks/useExternalTeamMembers'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 
@@ -11,6 +12,7 @@ export default function DashboardPage() {
   const { user, signOut, loading } = useAuth()
   const { profile, loading: profileLoading } = useUserProfile()
   const { teamMembers, loading: teamLoading, stats } = useTeamMembers()
+  const { externalTeamMembers, loading: externalTeamLoading, stats: externalStats } = useExternalTeamMembers()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -617,8 +619,8 @@ export default function DashboardPage() {
                           </svg>
                         </div>
                         <div>
-                          <h3 className="text-2xl font-bold text-gray-900">Internal Team Management</h3>
-                          <p className="text-gray-600">Manage your organization's internal employees</p>
+                          <h3 className="text-2xl font-bold text-gray-900">Team Management</h3>
+                          <p className="text-gray-600">Manage your organization's employees</p>
                         </div>
                       </div>
 
@@ -713,7 +715,7 @@ export default function DashboardPage() {
                       {internalTeamTab === 'members' && (
                         <div className="bg-white rounded-lg border border-gray-200">
                           <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                            <h4 className="text-lg font-semibold text-gray-900">Internal Team Members</h4>
+                            <h4 className="text-lg font-semibold text-gray-900">Team Members</h4>
                           </div>
                           
                           <div className="overflow-x-auto">
@@ -1010,8 +1012,8 @@ export default function DashboardPage() {
                           </svg>
                         </div>
                         <div>
-                          <h3 className="text-2xl font-bold text-gray-900">External Team Management</h3>
-                          <p className="text-gray-600">Manage external contractors and partners</p>
+                          <h3 className="text-2xl font-bold text-gray-900">Manage Admins</h3>
+                          <p className="text-gray-600">Manage administrators from other organizations</p>
                         </div>
                       </div>
 
@@ -1026,7 +1028,7 @@ export default function DashboardPage() {
                             </div>
                             <div>
                               <p className="text-sm text-green-600 font-medium">Total Members</p>
-                              <p className="text-2xl font-bold text-green-900">8</p>
+                              <p className="text-2xl font-bold text-green-900">{externalTeamLoading ? '...' : externalStats.totalMembers}</p>
                             </div>
                           </div>
                         </div>
@@ -1040,7 +1042,7 @@ export default function DashboardPage() {
                             </div>
                             <div>
                               <p className="text-sm text-emerald-600 font-medium">Active Members</p>
-                              <p className="text-2xl font-bold text-emerald-900">6</p>
+                              <p className="text-2xl font-bold text-emerald-900">{externalTeamLoading ? '...' : externalStats.activeMembers}</p>
                             </div>
                           </div>
                         </div>
@@ -1053,8 +1055,8 @@ export default function DashboardPage() {
                               </svg>
                             </div>
                             <div>
-                              <p className="text-sm text-amber-600 font-medium">Pending Invites</p>
-                              <p className="text-2xl font-bold text-amber-900">2</p>
+                              <p className="text-sm text-amber-600 font-medium">Pending Members</p>
+                              <p className="text-2xl font-bold text-amber-900">{externalTeamLoading ? '...' : externalStats.pendingMembers}</p>
                             </div>
                           </div>
                         </div>
@@ -1068,7 +1070,7 @@ export default function DashboardPage() {
                             </div>
                             <div>
                               <p className="text-sm text-teal-600 font-medium">Companies</p>
-                              <p className="text-2xl font-bold text-teal-900">3</p>
+                              <p className="text-2xl font-bold text-teal-900">{externalTeamLoading ? '...' : externalStats.companies}</p>
                             </div>
                           </div>
                         </div>
@@ -1077,7 +1079,7 @@ export default function DashboardPage() {
                       {/* External Team Members Table */}
                       <div className="bg-white rounded-lg border border-gray-200">
                         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                          <h4 className="text-lg font-semibold text-gray-900">External Team Members</h4>
+                          <h4 className="text-lg font-semibold text-gray-900">Admin Members</h4>
                         </div>
                         
                         <div className="overflow-x-auto">
@@ -1086,133 +1088,113 @@ export default function DashboardPage() {
                               <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contract Start</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                              <tr className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="flex items-center">
-                                    <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center text-white font-medium">
-                                      AC
-                                    </div>
-                                    <div className="ml-4">
-                                      <div className="text-sm font-medium text-gray-900">Alex Chen</div>
-                                      <div className="text-sm text-gray-500">Contractor ID: EXT001</div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">alex.chen@techcorp.com</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800">
-                                    Full Stack Developer
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">TechCorp Solutions</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    <svg className="w-2 h-2 mr-1" fill="currentColor" viewBox="0 0 8 8">
-                                      <circle cx="4" cy="4" r="3" />
-                                    </svg>
-                                    Active
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Jan 5, 2024</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                  <div className="flex items-center space-x-2">
-                                    <button className="text-green-600 hover:text-green-900">Edit</button>
-                                    <button className="text-gray-400 hover:text-gray-600">
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="flex items-center">
-                                    <div className="w-10 h-10 bg-pink-500 rounded-full flex items-center justify-center text-white font-medium">
-                                      SR
-                                    </div>
-                                    <div className="ml-4">
-                                      <div className="text-sm font-medium text-gray-900">Sarah Rodriguez</div>
-                                      <div className="text-sm text-gray-500">Contractor ID: EXT002</div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">sarah.r@designstudio.com</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-pink-100 text-pink-800">
-                                    UI/UX Designer
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Creative Design Studio</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    <svg className="w-2 h-2 mr-1" fill="currentColor" viewBox="0 0 8 8">
-                                      <circle cx="4" cy="4" r="3" />
-                                    </svg>
-                                    Active
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Feb 12, 2024</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                  <div className="flex items-center space-x-2">
-                                    <button className="text-green-600 hover:text-green-900">Edit</button>
-                                    <button className="text-gray-400 hover:text-gray-600">
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-
-                              <tr className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="flex items-center">
-                                    <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white font-medium">
-                                      DK
-                                    </div>
-                                    <div className="ml-4">
-                                      <div className="text-sm font-medium text-gray-900">David Kim</div>
-                                      <div className="text-sm text-gray-500">Contractor ID: EXT003</div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">d.kim@marketingpro.com</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
-                                    Marketing Specialist
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Marketing Pro Agency</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                    <svg className="w-2 h-2 mr-1" fill="currentColor" viewBox="0 0 8 8">
-                                      <circle cx="4" cy="4" r="3" />
-                                    </svg>
-                                    Pending
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Mar 1, 2024</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                  <div className="flex items-center space-x-2">
-                                    <button className="text-green-600 hover:text-green-900">Edit</button>
-                                    <button className="text-gray-400 hover:text-gray-600">
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
+                              {externalTeamLoading ? (
+                                <tr>
+                                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                                    Loading external team members...
+                                  </td>
+                                </tr>
+                              ) : externalTeamMembers.length === 0 ? (
+                                <tr>
+                                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                                    No external team members found.
+                                  </td>
+                                </tr>
+                              ) : (
+                                externalTeamMembers.map((member, index) => {
+                                  const initials = member.full_name
+                                    ? member.full_name.split(' ').map(n => n[0]).join('').toUpperCase()
+                                    : member.email.substring(0, 2).toUpperCase()
+                                  
+                                  const colors = [
+                                    'bg-indigo-500', 'bg-pink-500', 'bg-orange-500', 'bg-teal-500',
+                                    'bg-purple-500', 'bg-cyan-500', 'bg-emerald-500', 'bg-rose-500'
+                                  ]
+                                  const avatarColor = colors[index % colors.length]
+                                  
+                                  const roleColors = {
+                                    'PENDING': 'bg-yellow-100 text-yellow-800',
+                                    'ADMIN': 'bg-red-100 text-red-800',
+                                    'MANAGER': 'bg-blue-100 text-blue-800',
+                                    'DEVELOPER': 'bg-green-100 text-green-800',
+                                    'DESIGNER': 'bg-purple-100 text-purple-800',
+                                    'default': 'bg-gray-100 text-gray-800'
+                                  }
+                                  
+                                  const roleColor = roleColors[member.role?.toUpperCase() as keyof typeof roleColors] || roleColors.default
+                                  
+                                  return (
+                                    <tr key={member.id} className="hover:bg-gray-50">
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex items-center">
+                                          <div className={`w-10 h-10 ${avatarColor} rounded-full flex items-center justify-center text-white font-medium`}>
+                                            {initials}
+                                          </div>
+                                          <div className="ml-4">
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {member.full_name || `${member.first_name || ''} ${member.last_name || ''}`.trim() || 'Unknown'}
+                                            </div>
+                                            <div className="text-sm text-gray-500">ID: {member.id.substring(0, 8)}</div>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{member.email}</td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {member.organization_id ? (
+                                          <div>
+                                            <div className="font-medium">{member.organization_name || 'Unknown Organization'}</div>
+                                            <div className="text-xs text-gray-500">ID: {member.organization_id.substring(0, 8)}</div>
+                                          </div>
+                                        ) : (
+                                          'No Organization'
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleColor}`}>
+                                          {member.role || 'No Role'}
+                                        </span>
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                          member.status === 1
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-red-100 text-red-800'
+                                        }`}>
+                                          <svg className="w-2 h-2 mr-1" fill="currentColor" viewBox="0 0 8 8">
+                                            <circle cx="4" cy="4" r="3" />
+                                          </svg>
+                                          {member.status === 1 ? 'Active' : 'Inactive'}
+                                        </span>
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {new Date(member.created_at).toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          year: 'numeric'
+                                        })}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <div className="flex items-center space-x-2">
+                                          <button className="text-green-600 hover:text-green-900">View</button>
+                                          <button className="text-gray-400 hover:text-gray-600">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                            </svg>
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )
+                                })
+                              )}
                             </tbody>
                           </table>
                         </div>
