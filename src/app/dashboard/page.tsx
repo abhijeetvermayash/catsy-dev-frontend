@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useUserProfile } from '@/hooks/useUserProfile'
 import { useTeamMembers } from '@/hooks/useTeamMembers'
 import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase'
 
 export default function DashboardPage() {
   const { user, signOut, loading } = useAuth()
@@ -13,6 +14,14 @@ export default function DashboardPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [internalTeamTab, setInternalTeamTab] = useState('members')
+  
+  // Member action states
+  const [selectedMember, setSelectedMember] = useState<any>(null)
+  const [showAssignRoleModal, setShowAssignRoleModal] = useState(false)
+  const [showStatusModal, setShowStatusModal] = useState(false)
+  const [selectedRole, setSelectedRole] = useState('')
+  const [actionType, setActionType] = useState<'activate' | 'deactivate'>('activate')
 
   useEffect(() => {
     setMounted(true)
@@ -29,6 +38,79 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     await signOut()
     router.push('/')
+  }
+
+  // Member action handlers
+  const handleAssignRole = (member: any) => {
+    setSelectedMember(member)
+    setSelectedRole(member.role || '')
+    setShowAssignRoleModal(true)
+  }
+
+  const handleToggleStatus = (member: any) => {
+    setSelectedMember(member)
+    setActionType(member.status === 1 ? 'deactivate' : 'activate')
+    setShowStatusModal(true)
+  }
+
+  const confirmAssignRole = async () => {
+    if (!selectedMember || !selectedRole) return
+    
+    try {
+      const supabase = createClient()
+      
+      // Update role in profiles table
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: selectedRole })
+        .eq('id', selectedMember.id)
+      
+      if (error) {
+        throw error
+      }
+      
+      // Close modal and reset state
+      setShowAssignRoleModal(false)
+      setSelectedMember(null)
+      setSelectedRole('')
+      
+      // Refresh the page to show updated data
+      window.location.reload()
+      
+    } catch (error) {
+      console.error('Error assigning role:', error)
+      alert('Failed to assign role. Please try again.')
+    }
+  }
+
+  const confirmToggleStatus = async () => {
+    if (!selectedMember) return
+    
+    try {
+      const supabase = createClient()
+      const newStatus = actionType === 'activate' ? 1 : 0
+      
+      // Update status in profiles table
+      const { error } = await supabase
+        .from('profiles')
+        .update({ status: newStatus })
+        .eq('id', selectedMember.id)
+      
+      if (error) {
+        throw error
+      }
+      
+      // Close modal and reset state
+      setShowStatusModal(false)
+      setSelectedMember(null)
+      
+      // Refresh the page to show updated data
+      window.location.reload()
+      
+    } catch (error) {
+      console.error('Error updating status:', error)
+      alert('Failed to update account status. Please try again.')
+    }
   }
 
   // Define navigation items based on permissions
@@ -599,118 +681,324 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      {/* Internal Team Members Table */}
-                      <div className="bg-white rounded-lg border border-gray-200">
-                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                          <h4 className="text-lg font-semibold text-gray-900">Internal Team Members</h4>
-                        </div>
-                        
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {teamLoading ? (
-                                <tr>
-                                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                                    Loading team members...
-                                  </td>
-                                </tr>
-                              ) : teamMembers.length === 0 ? (
-                                <tr>
-                                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                                    No team members found in your organization.
-                                  </td>
-                                </tr>
-                              ) : (
-                                teamMembers.map((member, index) => {
-                                  const initials = member.full_name
-                                    ? member.full_name.split(' ').map(n => n[0]).join('').toUpperCase()
-                                    : member.email.substring(0, 2).toUpperCase()
-                                  
-                                  const colors = [
-                                    'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500',
-                                    'bg-indigo-500', 'bg-yellow-500', 'bg-red-500', 'bg-gray-500'
-                                  ]
-                                  const avatarColor = colors[index % colors.length]
-                                  
-                                  const roleColors = {
-                                    'PENDING': 'bg-yellow-100 text-yellow-800',
-                                    'ADMIN': 'bg-red-100 text-red-800',
-                                    'MANAGER': 'bg-blue-100 text-blue-800',
-                                    'DEVELOPER': 'bg-green-100 text-green-800',
-                                    'DESIGNER': 'bg-purple-100 text-purple-800',
-                                    'default': 'bg-gray-100 text-gray-800'
-                                  }
-                                  
-                                  const roleColor = roleColors[member.role?.toUpperCase() as keyof typeof roleColors] || roleColors.default
-                                  
-                                  return (
-                                    <tr key={member.id} className="hover:bg-gray-50">
-                                      <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex items-center">
-                                          <div className={`w-10 h-10 ${avatarColor} rounded-full flex items-center justify-center text-white font-medium`}>
-                                            {initials}
-                                          </div>
-                                          <div className="ml-4">
-                                            <div className="text-sm font-medium text-gray-900">
-                                              {member.full_name || `${member.first_name || ''} ${member.last_name || ''}`.trim() || 'Unknown'}
-                                            </div>
-                                            <div className="text-sm text-gray-500">ID: {member.id.substring(0, 8)}</div>
-                                          </div>
-                                        </div>
-                                      </td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{member.email}</td>
-                                      <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleColor}`}>
-                                          {member.role || 'No Role'}
-                                        </span>
-                                      </td>
-                                      <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                          member.status === 1
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-red-100 text-red-800'
-                                        }`}>
-                                          <svg className="w-2 h-2 mr-1" fill="currentColor" viewBox="0 0 8 8">
-                                            <circle cx="4" cy="4" r="3" />
-                                          </svg>
-                                          {member.status === 1 ? 'Active' : 'Inactive'}
-                                        </span>
-                                      </td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {new Date(member.created_at).toLocaleDateString('en-US', {
-                                          month: 'short',
-                                          day: 'numeric',
-                                          year: 'numeric'
-                                        })}
-                                      </td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <div className="flex items-center space-x-2">
-                                          <button className="text-blue-600 hover:text-blue-900">Edit</button>
-                                          <button className="text-gray-400 hover:text-gray-600">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                                            </svg>
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )
-                                })
-                              )}
-                            </tbody>
-                          </table>
+                      {/* Tab Navigation */}
+                      <div className="mb-6">
+                        <div className="border-b border-gray-200">
+                          <nav className="-mb-px flex space-x-8">
+                            <button
+                              onClick={() => setInternalTeamTab('members')}
+                              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                                internalTeamTab === 'members'
+                                  ? 'border-[#5146E5] text-[#5146E5]'
+                                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                              }`}
+                            >
+                              Members
+                            </button>
+                            <button
+                              onClick={() => setInternalTeamTab('roles')}
+                              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                                internalTeamTab === 'roles'
+                                  ? 'border-[#5146E5] text-[#5146E5]'
+                                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                              }`}
+                            >
+                              Roles and Responsibility
+                            </button>
+                          </nav>
                         </div>
                       </div>
+
+                      {/* Tab Content */}
+                      {internalTeamTab === 'members' && (
+                        <div className="bg-white rounded-lg border border-gray-200">
+                          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                            <h4 className="text-lg font-semibold text-gray-900">Internal Team Members</h4>
+                          </div>
+                          
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {teamLoading ? (
+                                  <tr>
+                                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                      Loading team members...
+                                    </td>
+                                  </tr>
+                                ) : teamMembers.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                      No team members found in your organization.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  teamMembers.map((member, index) => {
+                                    const initials = member.full_name
+                                      ? member.full_name.split(' ').map(n => n[0]).join('').toUpperCase()
+                                      : member.email.substring(0, 2).toUpperCase()
+                                    
+                                    const colors = [
+                                      'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500',
+                                      'bg-indigo-500', 'bg-yellow-500', 'bg-red-500', 'bg-gray-500'
+                                    ]
+                                    const avatarColor = colors[index % colors.length]
+                                    
+                                    const roleColors = {
+                                      'PENDING': 'bg-yellow-100 text-yellow-800',
+                                      'ADMIN': 'bg-red-100 text-red-800',
+                                      'MANAGER': 'bg-blue-100 text-blue-800',
+                                      'DEVELOPER': 'bg-green-100 text-green-800',
+                                      'DESIGNER': 'bg-purple-100 text-purple-800',
+                                      'default': 'bg-gray-100 text-gray-800'
+                                    }
+                                    
+                                    const roleColor = roleColors[member.role?.toUpperCase() as keyof typeof roleColors] || roleColors.default
+                                    
+                                    return (
+                                      <tr key={member.id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                          <div className="flex items-center">
+                                            <div className={`w-10 h-10 ${avatarColor} rounded-full flex items-center justify-center text-white font-medium`}>
+                                              {initials}
+                                            </div>
+                                            <div className="ml-4">
+                                              <div className="text-sm font-medium text-gray-900">
+                                                {member.full_name || `${member.first_name || ''} ${member.last_name || ''}`.trim() || 'Unknown'}
+                                              </div>
+                                              <div className="text-sm text-gray-500">ID: {member.id.substring(0, 8)}</div>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{member.email}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${roleColor}`}>
+                                            {member.role || 'No Role'}
+                                          </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                            member.status === 1
+                                              ? 'bg-green-100 text-green-800'
+                                              : 'bg-red-100 text-red-800'
+                                          }`}>
+                                            <svg className="w-2 h-2 mr-1" fill="currentColor" viewBox="0 0 8 8">
+                                              <circle cx="4" cy="4" r="3" />
+                                            </svg>
+                                            {member.status === 1 ? 'Active' : 'Inactive'}
+                                          </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                          {new Date(member.created_at).toLocaleDateString('en-US', {
+                                            month: 'short',
+                                            day: 'numeric',
+                                            year: 'numeric'
+                                          })}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                          <div className="flex items-center space-x-2">
+                                            <button
+                                              onClick={() => handleAssignRole(member)}
+                                              className="text-blue-600 hover:text-blue-900 font-medium"
+                                            >
+                                              Assign Role
+                                            </button>
+                                            <button
+                                              onClick={() => handleToggleStatus(member)}
+                                              className={`font-medium ${
+                                                member.status === 1
+                                                  ? 'text-red-600 hover:text-red-900'
+                                                  : 'text-green-600 hover:text-green-900'
+                                              }`}
+                                            >
+                                              {member.status === 1 ? 'Deactivate' : 'Activate'}
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )
+                                  })
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+
+                      {internalTeamTab === 'roles' && (
+                        <div className="bg-white rounded-lg border border-gray-200">
+                          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                            <h4 className="text-lg font-semibold text-gray-900">Roles and Responsibilities</h4>
+                          </div>
+                          
+                          <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {/* Admin Role */}
+                              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+                                <div className="flex items-center space-x-3 mb-4">
+                                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <h5 className="text-xl font-semibold text-gray-900">Admin</h5>
+                                  </div>
+                                </div>
+                                <p className="text-gray-600 mb-4">Full access to all features and team management</p>
+                                
+                                <div className="mb-4">
+                                  <h6 className="text-sm font-semibold text-gray-900 mb-3">Permissions:</h6>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Manage all team members</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Access all workflows and analytics</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Request new workflows</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Manage generated files</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Configure account settings</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Billing and subscription management</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Editor Role */}
+                              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+                                <div className="flex items-center space-x-3 mb-4">
+                                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <h5 className="text-xl font-semibold text-gray-900">Editor</h5>
+                                  </div>
+                                </div>
+                                <p className="text-gray-600 mb-4">Can manage workflows and access most features</p>
+                                
+                                <div className="mb-4">
+                                  <h6 className="text-sm font-semibold text-gray-900 mb-3">Permissions:</h6>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Manage existing workflows</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Request new workflows</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Access workflow analytics</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Download generated files</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">View team information</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Analyst Role */}
+                              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+                                <div className="flex items-center space-x-3 mb-4">
+                                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <h5 className="text-xl font-semibold text-gray-900">Analyst</h5>
+                                  </div>
+                                </div>
+                                <p className="text-gray-600 mb-4">Read-only access to workflows and analytics</p>
+                                
+                                <div className="mb-4">
+                                  <h6 className="text-sm font-semibold text-gray-900 mb-3">Permissions:</h6>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">View all workflows</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Access analytics and reports</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">Download generated files</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span className="text-sm text-gray-700">View team information</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* External Team Management Section */}
@@ -1015,6 +1303,140 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Assign Role Modal */}
+      {showAssignRoleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Assign Role</h3>
+              <button
+                onClick={() => setShowAssignRoleModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {selectedMember && (
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  Assigning role to: <span className="font-medium text-gray-900">{selectedMember.email}</span>
+                </p>
+                <p className="text-sm text-gray-500">
+                  Current role: <span className="font-medium">{selectedMember.role || 'No Role'}</span>
+                </p>
+              </div>
+            )}
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select New Role
+              </label>
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5146E5] focus:border-transparent"
+              >
+                <option value="">Select a role...</option>
+                <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                <option value="APPROVER">APPROVER</option>
+                <option value="BUILDER">BUILDER</option>
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowAssignRoleModal(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAssignRole}
+                disabled={!selectedRole}
+                className="flex-1 px-4 py-2 bg-[#5146E5] hover:bg-[#4338CA] text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Assign Role
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Toggle Modal */}
+      {showStatusModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {actionType === 'activate' ? 'Activate' : 'Deactivate'} Account
+              </h3>
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {selectedMember && (
+              <div className="mb-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                    actionType === 'activate' ? 'bg-green-100' : 'bg-red-100'
+                  }`}>
+                    {actionType === 'activate' ? (
+                      <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{selectedMember.email}</p>
+                    <p className="text-sm text-gray-500">
+                      Current status: {selectedMember.status === 1 ? 'Active' : 'Inactive'}
+                    </p>
+                  </div>
+                </div>
+                
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to {actionType} this account?
+                  {actionType === 'deactivate' && ' The user will lose access to the system.'}
+                  {actionType === 'activate' && ' The user will regain access to the system.'}
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmToggleStatus}
+                className={`flex-1 px-4 py-2 text-white rounded-lg font-medium transition-colors duration-200 ${
+                  actionType === 'activate'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {actionType === 'activate' ? 'Activate' : 'Deactivate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
