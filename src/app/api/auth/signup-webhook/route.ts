@@ -32,19 +32,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing organisation_name" }, { status: 400 })
     }
 
-    // 1. Insert or fetch organization
-    const { data: orgData, error: orgError } = await supabaseAdmin
+    // Normalize organization name: trim spaces and convert to uppercase for comparison
+    const normalizedOrgName = organisation_name.trim()
+    const normalizedOrgNameUpper = normalizedOrgName.toUpperCase()
+
+    if (!normalizedOrgName) {
+      return NextResponse.json({ error: "Organisation name cannot be empty" }, { status: 400 })
+    }
+
+    // 1. Check if organization already exists (case-insensitive)
+    const { data: existingOrg, error: searchError } = await supabaseAdmin
       .from("organizations")
-      .upsert(
-        { name: organisation_name },
-        { onConflict: "name" }
-      )
-      .select()
+      .select("*")
+      .ilike("name", normalizedOrgNameUpper)
       .single()
 
-    if (orgError || !orgData) {
-      console.error("Org Error:", orgError)
-      return NextResponse.json({ error: "Org creation failed" }, { status: 500 })
+    let orgData
+
+    if (searchError && searchError.code !== 'PGRST116') { // PGRST116 = no rows found
+      console.error("Organization search error:", searchError)
+      return NextResponse.json({ error: "Organization lookup failed" }, { status: 500 })
+    }
+
+    if (existingOrg) {
+      // Organization exists, use it
+      orgData = existingOrg
+      console.log(`Using existing organization: ${existingOrg.name} (ID: ${existingOrg.id})`)
+    } else {
+      // Organization doesn't exist, create new one with normalized name
+      const { data: newOrg, error: orgError } = await supabaseAdmin
+        .from("organizations")
+        .insert({ name: normalizedOrgName })
+        .select()
+        .single()
+
+      if (orgError || !newOrg) {
+        console.error("Organization creation error:", orgError)
+        return NextResponse.json({ error: "Organization creation failed" }, { status: 500 })
+      }
+
+      orgData = newOrg
+      console.log(`Created new organization: ${newOrg.name} (ID: ${newOrg.id})`)
     }
 
     // 2. Insert into profiles
