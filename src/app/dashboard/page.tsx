@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useUserProfile } from '@/hooks/useUserProfile'
 import { useTeamMembers } from '@/hooks/useTeamMembers'
 import { useExternalTeamMembers } from '@/hooks/useExternalTeamMembers'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 
 export default function DashboardPage() {
@@ -48,6 +48,12 @@ export default function DashboardPage() {
   const [workflowsError, setWorkflowsError] = useState<string | null>(null)
   const [workflowUsers, setWorkflowUsers] = useState<{[key: string]: any}>({})
 
+  // Active workflows data states for Create Listings
+  const [activeWorkflows, setActiveWorkflows] = useState<any[]>([])
+  const [activeWorkflowsLoading, setActiveWorkflowsLoading] = useState(true)
+  const [activeWorkflowsError, setActiveWorkflowsError] = useState<string | null>(null)
+  const [activeWorkflowUsers, setActiveWorkflowUsers] = useState<{[key: string]: any}>({})
+
   // Workflow Requests data states
   const [workflowRequests, setWorkflowRequests] = useState<any[]>([])
   const [workflowRequestsLoading, setWorkflowRequestsLoading] = useState(true)
@@ -62,6 +68,15 @@ export default function DashboardPage() {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE'
   })
 
+  // Run workflow modal states
+  const [showRunWorkflowModal, setShowRunWorkflowModal] = useState(false)
+  const [selectedWorkflowForRun, setSelectedWorkflowForRun] = useState<any>(null)
+  const [runWorkflowFormData, setRunWorkflowFormData] = useState({
+    templateSourceType: 'url' as 'url' | 'file',
+    templateUrl: '',
+    templateFile: null as File | null
+  })
+
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -73,24 +88,6 @@ export default function DashboardPage() {
       router.push('/auth')
     }
   }, [user, loading, router])
-
-  // Fetch workflows when user and profile are available
-  useEffect(() => {
-    if (user && profile) {
-      fetchWorkflows()
-    }
-  }, [user, profile])
-
-  // Fetch workflow requests when switching to workflow-requests tab
-  useEffect(() => {
-    if (activeTab === 'workflow-requests' && user && profile) {
-      if (workflowRequestsTab === 'pending') {
-        fetchWorkflowRequests('UNDER PROCESS')
-      } else {
-        fetchWorkflowRequests()
-      }
-    }
-  }, [activeTab, user, profile])
 
   // Function to fetch workflows
   const fetchWorkflows = async () => {
@@ -143,6 +140,90 @@ export default function DashboardPage() {
       setWorkflowsLoading(false)
     }
   }
+
+  // Function to fetch active workflows for Create Listings
+  const fetchActiveWorkflows = useCallback(async () => {
+    if (!user?.id || !profile?.organization_id) {
+      setActiveWorkflowsLoading(false)
+      return
+    }
+    
+    try {
+      setActiveWorkflowsLoading(true)
+      setActiveWorkflowsError(null)
+      
+      const supabase = createClient()
+      
+      console.log('Fetching active workflows for organization:', profile.organization_id)
+      
+      // Fetch only ACTIVE workflows for the current user's organization
+      const { data, error } = await supabase
+        .from('workflows')
+        .select('*')
+        .eq('organisation_id', profile.organization_id)
+        .eq('status', 'ACTIVE')
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('Error fetching active workflows:', error)
+        setActiveWorkflowsError('Failed to load active workflows')
+        return
+      }
+      
+      console.log('Active workflows fetched:', data?.length || 0)
+      setActiveWorkflows(data || [])
+      
+      // Fetch user details for all active workflows
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map(w => w.user_id).filter(Boolean))]
+        
+        if (userIds.length > 0) {
+          const { data: usersData, error: usersError } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, full_name, email')
+            .in('id', userIds)
+          
+          if (!usersError && usersData) {
+            const usersMap = usersData.reduce((acc, user: any) => {
+              acc[user.id] = user
+              return acc
+            }, {} as {[key: string]: any})
+            setActiveWorkflowUsers(usersMap)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in fetchActiveWorkflows:', error)
+      setActiveWorkflowsError('An error occurred while loading active workflows')
+    } finally {
+      setActiveWorkflowsLoading(false)
+    }
+  }, [user?.id, profile?.organization_id])
+
+  // Fetch workflows when user and profile are available
+  useEffect(() => {
+    if (user && profile) {
+      fetchWorkflows()
+    }
+  }, [user, profile])
+
+  // Fetch workflow requests when switching to workflow-requests tab
+  useEffect(() => {
+    if (activeTab === 'workflow-requests' && user && profile) {
+      if (workflowRequestsTab === 'pending') {
+        fetchWorkflowRequests('UNDER PROCESS')
+      } else {
+        fetchWorkflowRequests()
+      }
+    }
+  }, [activeTab, user, profile])
+
+  // Fetch active workflows when switching to create-listings tab
+  useEffect(() => {
+    if (activeTab === 'create-listings' && user && profile) {
+      fetchActiveWorkflows()
+    }
+  }, [activeTab, user, profile, fetchActiveWorkflows])
 
   // Function to fetch workflow requests
   const fetchWorkflowRequests = async (status?: string) => {
@@ -396,6 +477,130 @@ export default function DashboardPage() {
     }
   }
 
+  // Handler to show run workflow modal
+  const handleRunWorkflow = (workflow: any) => {
+    setSelectedWorkflowForRun(workflow)
+    setRunWorkflowFormData({
+      templateSourceType: 'url',
+      templateUrl: '',
+      templateFile: null
+    })
+    setShowRunWorkflowModal(true)
+  }
+
+  // Handler for run workflow form changes
+  const handleRunWorkflowFormChange = (field: string, value: string | File | null) => {
+    setRunWorkflowFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // Handler for template file upload in run workflow modal
+  const handleRunTemplateFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null
+    setRunWorkflowFormData(prev => ({
+      ...prev,
+      templateFile: file
+    }))
+  }
+
+  // Handler to confirm adding workflow to execution queue
+  const confirmAddToExecutionQueue = async () => {
+    if (!selectedWorkflowForRun || !user?.id || !profile?.organization_id) return
+    
+    // Validate required fields
+    if (runWorkflowFormData.templateSourceType === 'url' && !runWorkflowFormData.templateUrl.trim()) {
+      alert('Please enter a template URL.')
+      return
+    }
+    
+    if (runWorkflowFormData.templateSourceType === 'file' && !runWorkflowFormData.templateFile) {
+      alert('Please upload a template file.')
+      return
+    }
+    
+    try {
+      const supabase = createClient()
+      
+      // Show loading state
+      const submitButton = document.querySelector('[data-execution-queue-button]') as HTMLButtonElement
+      if (submitButton) {
+        submitButton.disabled = true
+        submitButton.textContent = 'Adding to Queue...'
+      }
+      
+      let templateFileUrl = runWorkflowFormData.templateUrl
+      
+      // Upload file to Supabase storage if user chose file upload
+      if (runWorkflowFormData.templateSourceType === 'file' && runWorkflowFormData.templateFile) {
+        console.log('Uploading template file to Supabase storage...')
+        
+        const uploadedUrl = await uploadFileToSupabase(
+          runWorkflowFormData.templateFile,
+          'workflow-files',
+          'template-files'
+        )
+        
+        if (!uploadedUrl) {
+          alert('Failed to upload template file. Please try again.')
+          return
+        }
+        
+        templateFileUrl = uploadedUrl
+        console.log('Template file uploaded successfully:', uploadedUrl)
+      }
+      
+      // Create entry in workflow_execute table
+      const workflowExecuteData = {
+        workflow_id: selectedWorkflowForRun.id,
+        template_file: templateFileUrl,
+        executed_by: user.id,
+        generated_files: [], // Empty array initially
+        organisation_id: profile.organization_id,
+        webhook_url: selectedWorkflowForRun.webhook_url
+      }
+      
+      console.log('Creating workflow execution entry:', workflowExecuteData)
+      
+      const { data, error } = await supabase
+        .from('workflow_execute')
+        .insert([workflowExecuteData])
+        .select()
+      
+      if (error) {
+        console.error('Error creating workflow execution entry:', error)
+        alert('Failed to add workflow to execution queue. Please try again.')
+        return
+      }
+      
+      console.log('Workflow execution entry created successfully:', data)
+      
+      // Close modal and reset state
+      setShowRunWorkflowModal(false)
+      setSelectedWorkflowForRun(null)
+      setRunWorkflowFormData({
+        templateSourceType: 'url',
+        templateUrl: '',
+        templateFile: null
+      })
+      
+      // Show success message
+      alert(`Workflow "${selectedWorkflowForRun.workflow_name || 'Unnamed Workflow'}" has been added to the execution queue successfully!`)
+      
+    } catch (error) {
+      console.error('Error adding to execution queue:', error)
+      alert('An error occurred while adding to execution queue. Please try again.')
+    } finally {
+      // Reset button state
+      const submitButton = document.querySelector('[data-execution-queue-button]') as HTMLButtonElement
+      if (submitButton) {
+        submitButton.disabled = false
+        submitButton.textContent = 'Add To Execution Queue'
+      }
+    }
+  }
+
   // File upload utility function
   const uploadFileToSupabase = async (file: File, bucket: string, path: string): Promise<string | null> => {
     try {
@@ -603,8 +808,8 @@ export default function DashboardPage() {
       permission: null
     })
 
-    // Create Listings
-    if (permissions.includes('create_listings') || permissions.includes('manage_listings')) {
+    // Create Listings - Show for users with ADD_TRIGGER_LISTING permission
+    if (permissions.includes('ADD_TRIGGER_LISTING')) {
       items.push({
         id: 'create-listings',
         name: 'Create Listings',
@@ -613,7 +818,7 @@ export default function DashboardPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
         ),
-        permission: 'create_listings'
+        permission: 'ADD_TRIGGER_LISTING'
       })
     }
 
@@ -2329,8 +2534,200 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Create Listings Section */}
+          {activeTab === 'create-listings' && (
+            <div className="space-y-6">
+              {/* Create Listings Header */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Create Listings</h2>
+                    <p className="text-gray-600">Create and manage your product listings across marketplaces</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Workflows Table for Create Listings */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Active Workflows</h3>
+                    <div className="text-sm text-gray-500">
+                      {activeWorkflows.length} active workflow{activeWorkflows.length !== 1 ? 's' : ''} available
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marketplaces</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {activeWorkflowsLoading ? (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#5146E5]"></div>
+                              <span>Loading active workflows...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : activeWorkflowsError ? (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-8 text-center text-red-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                              <span>{activeWorkflowsError}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : activeWorkflows.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex flex-col items-center space-y-3">
+                              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-gray-500 font-medium">No active workflows found</p>
+                                <p className="text-sm text-gray-400 mt-1">No active workflows available for creating listings</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        activeWorkflows.map((workflow, index) => {
+                          const statusColors = {
+                            'ACTIVE': 'bg-green-100 text-green-800',
+                            'INACTIVE': 'bg-gray-100 text-gray-800',
+                            'UNDER PROCESS': 'bg-yellow-100 text-yellow-800'
+                          }
+                          
+                          const statusColor = statusColors[workflow.status as keyof typeof statusColors] || statusColors['UNDER PROCESS']
+                          
+                          return (
+                            <tr key={workflow.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="w-10 h-10 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                                    {workflow.workflow_name ? workflow.workflow_name.substring(0, 2).toUpperCase() : 'WF'}
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">{workflow.workflow_name || 'Unnamed Workflow'}</div>
+                                    <div className="text-sm text-gray-500">ID: {workflow.id.substring(0, 8)}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">{workflow.brand_name}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {workflow.user_id && activeWorkflowUsers[workflow.user_id] ? (
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                      {activeWorkflowUsers[workflow.user_id].full_name
+                                        ? activeWorkflowUsers[workflow.user_id].full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                        : activeWorkflowUsers[workflow.user_id].first_name && activeWorkflowUsers[workflow.user_id].last_name
+                                        ? `${activeWorkflowUsers[workflow.user_id].first_name[0]}${activeWorkflowUsers[workflow.user_id].last_name[0]}`.toUpperCase()
+                                        : activeWorkflowUsers[workflow.user_id].email.substring(0, 2).toUpperCase()
+                                      }
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {activeWorkflowUsers[workflow.user_id].full_name ||
+                                         (activeWorkflowUsers[workflow.user_id].first_name && activeWorkflowUsers[workflow.user_id].last_name
+                                           ? `${activeWorkflowUsers[workflow.user_id].first_name} ${activeWorkflowUsers[workflow.user_id].last_name}`
+                                           : 'Unknown User')}
+                                      </div>
+                                      <div className="text-xs text-gray-500">{activeWorkflowUsers[workflow.user_id].email}</div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                      ?
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">Unknown User</div>
+                                      <div className="text-xs text-gray-500">
+                                        {workflow.user_id ? `ID: ${workflow.user_id.substring(0, 8)}` : 'No user ID'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex flex-wrap gap-1">
+                                  {workflow.marketplace_channels.slice(0, 2).map((channel: string) => (
+                                    <span key={channel} className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                      {channel}
+                                    </span>
+                                  ))}
+                                  {workflow.marketplace_channels.length > 2 && (
+                                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                      +{workflow.marketplace_channels.length - 2}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
+                                  {workflow.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(workflow.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => handleRunWorkflow(workflow)}
+                                    className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                                  >
+                                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M8 5v14l11-7z"/>
+                                    </svg>
+                                    Add To Queue
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Other tab content placeholders */}
-          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && activeTab !== 'workflows' && activeTab !== 'workflow-requests' && (
+          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && activeTab !== 'workflows' && activeTab !== 'workflow-requests' && activeTab !== 'create-listings' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
               <div className="text-center">
                 <h3 className="text-xl font-semibold text-gray-900 mb-2 capitalize">
@@ -3640,6 +4037,269 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 <span>{selectedWorkflowForCompletion?.status === 'UNDER PROCESS' ? 'Mark as Done' : 'Update Workflow'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Run Workflow Modal */}
+      {showRunWorkflowModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
+            {/* Modal Header */}
+            <div className="relative p-6 rounded-t-2xl text-white bg-gradient-to-r from-green-500 to-emerald-600">
+              <div className="absolute inset-0 bg-black/10 rounded-t-2xl"></div>
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white drop-shadow-sm">Run Workflow</h3>
+                    <p className="text-white/80 text-sm">Configure template and Run</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowRunWorkflowModal(false)}
+                  className="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {selectedWorkflowForRun && (
+                <>
+                  {/* Workflow Details Card */}
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                        {selectedWorkflowForRun.workflow_name ? selectedWorkflowForRun.workflow_name.substring(0, 2).toUpperCase() : 'WF'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-gray-600">Workflow:</span>
+                          <span className="font-semibold text-gray-900">{selectedWorkflowForRun.workflow_name || 'Unnamed Workflow'}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-sm font-medium text-gray-600">Brand:</span>
+                          <span className="text-sm text-gray-500">{selectedWorkflowForRun.brand_name}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Template Source Type Selection */}
+                  <div className="space-y-4">
+                    <label className="block text-sm font-semibold text-gray-800">
+                      <span className="flex items-center space-x-2">
+                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Template Source</span>
+                        <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label
+                        className={`group relative flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                          runWorkflowFormData.templateSourceType === 'url'
+                            ? 'border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-lg'
+                            : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="templateSourceType"
+                          value="url"
+                          checked={runWorkflowFormData.templateSourceType === 'url'}
+                          onChange={(e) => handleRunWorkflowFormChange('templateSourceType', e.target.value)}
+                          className="sr-only"
+                        />
+                        <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                          runWorkflowFormData.templateSourceType === 'url'
+                            ? 'border-green-500 bg-green-500 shadow-md'
+                            : 'border-gray-300 group-hover:border-gray-400'
+                        }`}>
+                          {runWorkflowFormData.templateSourceType === 'url' && (
+                            <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                            </svg>
+                          </div>
+                          <div>
+                            <span className="text-sm font-semibold text-gray-800">Template URL</span>
+                            <p className="text-xs text-gray-600">Connect via Google Sheets or Excel Online</p>
+                          </div>
+                        </div>
+                        {runWorkflowFormData.templateSourceType === 'url' && (
+                          <div className="absolute top-2 right-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                          </div>
+                        )}
+                      </label>
+
+                      <label
+                        className={`group relative flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                          runWorkflowFormData.templateSourceType === 'file'
+                            ? 'border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-lg'
+                            : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="templateSourceType"
+                          value="file"
+                          checked={runWorkflowFormData.templateSourceType === 'file'}
+                          onChange={(e) => handleRunWorkflowFormChange('templateSourceType', e.target.value)}
+                          className="sr-only"
+                        />
+                        <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-200 ${
+                          runWorkflowFormData.templateSourceType === 'file'
+                            ? 'border-green-500 bg-green-500 shadow-md'
+                            : 'border-gray-300 group-hover:border-gray-400'
+                        }`}>
+                          {runWorkflowFormData.templateSourceType === 'file' && (
+                            <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                            <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                          </div>
+                          <div>
+                            <span className="text-sm font-semibold text-gray-800">Upload File</span>
+                            <p className="text-xs text-gray-600">Upload Excel, CSV, or JSON files</p>
+                          </div>
+                        </div>
+                        {runWorkflowFormData.templateSourceType === 'file' && (
+                          <div className="absolute top-2 right-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* URL Input */}
+                  {runWorkflowFormData.templateSourceType === 'url' && (
+                    <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
+                      <label className="block text-sm font-semibold text-gray-800 mb-3">
+                        <span className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          <span>Template URL</span>
+                          <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                        </div>
+                        <input
+                          type="url"
+                          value={runWorkflowFormData.templateUrl}
+                          onChange={(e) => handleRunWorkflowFormChange('templateUrl', e.target.value)}
+                          placeholder="https://docs.google.com/spreadsheets/d/..."
+                          className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* File Upload */}
+                  {runWorkflowFormData.templateSourceType === 'file' && (
+                    <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
+                      <label className="block text-sm font-semibold text-gray-800 mb-3">
+                        <span className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <span>Upload Template File</span>
+                          <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      <div className="mt-2 flex justify-center px-6 pt-6 pb-6 border-2 border-gray-300 border-dashed rounded-xl hover:border-green-500 hover:bg-green-50/50 transition-all duration-300 group">
+                        <div className="space-y-2 text-center">
+                          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                          </div>
+                          <div className="flex text-sm text-gray-700">
+                            <label htmlFor="run-template-file-upload" className="relative cursor-pointer bg-white rounded-lg px-3 py-2 font-semibold text-green-600 hover:text-green-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-green-500 shadow-sm hover:shadow-md transition-all duration-200">
+                              <span>Choose template file</span>
+                              <input
+                                id="run-template-file-upload"
+                                name="run-template-file-upload"
+                                type="file"
+                                className="sr-only"
+                                accept=".xlsx,.xls,.csv,.json"
+                                onChange={handleRunTemplateFileUpload}
+                              />
+                            </label>
+                            <p className="pl-1 self-center">or drag and drop</p>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Excel (.xlsx, .xls), CSV, or JSON files up to 10MB
+                          </p>
+                          {runWorkflowFormData.templateFile && (
+                            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex items-center justify-center space-x-2 text-green-700">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="font-medium text-sm">{runWorkflowFormData.templateFile.name}</span>
+                                <span className="text-xs">({(runWorkflowFormData.templateFile.size / 1024 / 1024).toFixed(2)} MB)</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+              <button
+                onClick={() => setShowRunWorkflowModal(false)}
+                className="px-6 py-3 text-gray-700 bg-white border-2 border-gray-200 rounded-xl font-semibold transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAddToExecutionQueue}
+                data-execution-queue-button
+                disabled={
+                  (runWorkflowFormData.templateSourceType === 'url' && !runWorkflowFormData.templateUrl.trim()) ||
+                  (runWorkflowFormData.templateSourceType === 'file' && !runWorkflowFormData.templateFile)
+                }
+                className="px-6 py-3 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-lg"
+              >
+                 <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M8 5v14l11-7z"/>
+                                    </svg>
+                <span>Add To Execution Queue</span>
               </button>
             </div>
           </div>
