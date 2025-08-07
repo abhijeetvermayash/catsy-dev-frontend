@@ -54,6 +54,13 @@ export default function DashboardPage() {
   const [activeWorkflowsError, setActiveWorkflowsError] = useState<string | null>(null)
   const [activeWorkflowUsers, setActiveWorkflowUsers] = useState<{[key: string]: any}>({})
 
+  // Workflow Executions data states for Run Workflows section
+  const [workflowExecutions, setWorkflowExecutions] = useState<any[]>([])
+  const [workflowExecutionsLoading, setWorkflowExecutionsLoading] = useState(true)
+  const [workflowExecutionsError, setWorkflowExecutionsError] = useState<string | null>(null)
+  const [workflowExecutionUsers, setWorkflowExecutionUsers] = useState<{[key: string]: any}>({})
+  const [workflowExecutionWorkflows, setWorkflowExecutionWorkflows] = useState<{[key: string]: any}>({})
+
   // Workflow Requests data states
   const [workflowRequests, setWorkflowRequests] = useState<any[]>([])
   const [workflowRequestsLoading, setWorkflowRequestsLoading] = useState(true)
@@ -76,6 +83,30 @@ export default function DashboardPage() {
     templateUrl: '',
     templateFile: null as File | null
   })
+
+  // Toast notification states
+  const [toasts, setToasts] = useState<Array<{
+    id: string
+    type: 'success' | 'error' | 'info' | 'warning'
+    title: string
+    message: string
+  }>>([])
+
+  // Toast notification functions
+  const showToast = (type: 'success' | 'error' | 'info' | 'warning', title: string, message: string) => {
+    const id = Math.random().toString(36).substr(2, 9)
+    const newToast = { id, type, title, message }
+    setToasts(prev => [...prev, newToast])
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      setToasts(prev => prev.filter(toast => toast.id !== id))
+    }, 5000)
+  }
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id))
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -200,6 +231,82 @@ export default function DashboardPage() {
     }
   }, [user?.id, profile?.organization_id])
 
+  // Function to fetch workflow executions for Run Workflows section
+  const fetchWorkflowExecutions = useCallback(async () => {
+    if (!user?.id || !profile?.organization_id) {
+      setWorkflowExecutionsLoading(false)
+      return
+    }
+    
+    try {
+      setWorkflowExecutionsLoading(true)
+      setWorkflowExecutionsError(null)
+      
+      const supabase = createClient()
+      
+      console.log('Fetching workflow executions for organization:', profile.organization_id)
+      
+      // Fetch workflow executions for the current user's organization
+      const { data, error } = await supabase
+        .from('workflow_execute')
+        .select('*')
+        .eq('organisation_id', profile.organization_id)
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('Error fetching workflow executions:', error)
+        setWorkflowExecutionsError('Failed to load workflow executions')
+        return
+      }
+      
+      console.log('Workflow executions fetched:', data?.length || 0)
+      setWorkflowExecutions(data || [])
+      
+      // Fetch user details for all workflow executions
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map(w => w.executed_by).filter(Boolean))]
+        const workflowIds = [...new Set(data.map(w => w.workflow_id).filter(Boolean))]
+        
+        // Fetch user details
+        if (userIds.length > 0) {
+          const { data: usersData, error: usersError } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, full_name, email')
+            .in('id', userIds)
+          
+          if (!usersError && usersData) {
+            const usersMap = usersData.reduce((acc, user: any) => {
+              acc[user.id] = user
+              return acc
+            }, {} as {[key: string]: any})
+            setWorkflowExecutionUsers(usersMap)
+          }
+        }
+        
+        // Fetch workflow details
+        if (workflowIds.length > 0) {
+          const { data: workflowsData, error: workflowsError } = await supabase
+            .from('workflows')
+            .select('id, workflow_name, brand_name')
+            .in('id', workflowIds)
+          
+          if (!workflowsError && workflowsData) {
+            const workflowsMap = workflowsData.reduce((acc, workflow: any) => {
+              acc[workflow.id] = workflow
+              return acc
+            }, {} as {[key: string]: any})
+            setWorkflowExecutionWorkflows(workflowsMap)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in fetchWorkflowExecutions:', error)
+      setWorkflowExecutionsError('An error occurred while loading workflow executions')
+    } finally {
+      setWorkflowExecutionsLoading(false)
+    }
+  }, [user?.id, profile?.organization_id])
+
   // Fetch workflows when user and profile are available
   useEffect(() => {
     if (user && profile) {
@@ -218,12 +325,13 @@ export default function DashboardPage() {
     }
   }, [activeTab, user, profile])
 
-  // Fetch active workflows when switching to create-listings tab
+  // Fetch active workflows and workflow executions when switching to create-listings tab
   useEffect(() => {
     if (activeTab === 'create-listings' && user && profile) {
       fetchActiveWorkflows()
+      fetchWorkflowExecutions()
     }
-  }, [activeTab, user, profile, fetchActiveWorkflows])
+  }, [activeTab, user, profile, fetchActiveWorkflows, fetchWorkflowExecutions])
 
   // Function to fetch workflow requests
   const fetchWorkflowRequests = async (status?: string) => {
@@ -597,6 +705,181 @@ export default function DashboardPage() {
       if (submitButton) {
         submitButton.disabled = false
         submitButton.textContent = 'Add To Execution Queue'
+      }
+    }
+  }
+
+  // Handler to run workflow execution
+  const handleRunWorkflowExecution = async (execution: any) => {
+    if (!execution.webhook_url) {
+      alert('No webhook URL found for this execution.')
+      return
+    }
+
+    try {
+      // Show loading state on the button
+      const runButton = document.querySelector(`[data-run-execution="${execution.id}"]`) as HTMLButtonElement
+      if (runButton) {
+        runButton.disabled = true
+        runButton.innerHTML = `
+          <svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          RUNNING...
+        `
+      }
+
+      console.log('Making API call to webhook:', execution.webhook_url)
+
+      // Make POST request to the webhook URL
+      const response = await fetch(execution.webhook_url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // You can add any required payload here if needed
+        body: JSON.stringify({
+          execution_id: execution.id,
+          workflow_id: execution.workflow_id,
+          template_file: execution.template_file
+        })
+      })
+
+      console.log('Webhook response status:', response.status)
+
+      if (response.status === 200) {
+        const responseData = await response.json()
+        console.log('Webhook response data:', responseData)
+
+        // Check if response has the expected structure
+        if (responseData.URLs) {
+          const supabase = createClient()
+
+          // Update the workflow_execute table with generated files and success status
+          const { error: updateError } = await supabase
+            .from('workflow_execute')
+            .update({
+              generated_files: [responseData.URLs], // Store as array
+              status: 'SUCCESS'
+            })
+            .eq('id', execution.id)
+
+          if (updateError) {
+            console.error('Error updating workflow execution:', updateError)
+            showToast('error', 'Update Failed', 'Failed to update execution status. Please try again.')
+            return
+          }
+
+          console.log('Workflow execution updated successfully')
+          
+          // Refresh the workflow executions data
+          fetchWorkflowExecutions()
+          
+          showToast('success', 'Workflow Executed Successfully', 'Files have been generated and are ready for download.')
+        } else {
+          console.error('Invalid response structure:', responseData)
+          showToast('warning', 'Invalid Response', 'Workflow execution completed but response format is invalid.')
+        }
+      } else {
+        console.error('Webhook request failed with status:', response.status)
+        const errorText = await response.text()
+        console.error('Error response:', errorText)
+        showToast('error', 'Execution Failed', `Workflow execution failed with status ${response.status}. Please try again.`)
+      }
+
+    } catch (error) {
+      console.error('Error running workflow execution:', error)
+      showToast('error', 'Network Error', 'An error occurred while running the workflow. Please check your network connection and try again.')
+    } finally {
+      // Reset button state
+      const runButton = document.querySelector(`[data-run-execution="${execution.id}"]`) as HTMLButtonElement
+      if (runButton) {
+        runButton.disabled = false
+        runButton.innerHTML = `
+          <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          RUN
+        `
+      }
+    }
+  }
+
+  // Handler to download files from generated_files
+  const handleDownloadFiles = async (execution: any) => {
+    if (!execution.generated_files || execution.generated_files.length === 0) {
+      showToast('warning', 'No Files Available', 'No files available for download.')
+      return
+    }
+
+    try {
+      // Show loading state on the button
+      const downloadButton = document.querySelector(`[data-download-files="${execution.id}"]`) as HTMLButtonElement
+      if (downloadButton) {
+        downloadButton.disabled = true
+        downloadButton.innerHTML = `
+          <svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          DOWNLOADING...
+        `
+      }
+
+      console.log('Downloading files:', execution.generated_files)
+
+      // Download each file
+      for (let i = 0; i < execution.generated_files.length; i++) {
+        const fileUrl = execution.generated_files[i]
+        
+        if (!fileUrl) {
+          console.warn(`Skipping empty file URL at index ${i}`)
+          continue
+        }
+
+        try {
+          console.log(`Downloading file ${i + 1}/${execution.generated_files.length}:`, fileUrl)
+          
+          // Convert Google Sheets URL to export format
+          let downloadUrl = fileUrl
+          if (fileUrl.includes('docs.google.com/spreadsheets/d/')) {
+            // Extract the file ID from the URL
+            const fileIdMatch = fileUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)
+            if (fileIdMatch && fileIdMatch[1]) {
+              const fileId = fileIdMatch[1]
+              downloadUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`
+            }
+          }
+
+          // Open in new tab to trigger download
+          window.open(downloadUrl, '_blank')
+
+          // Add a small delay between downloads to avoid overwhelming the browser
+          if (i < execution.generated_files.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500))
+          }
+        } catch (fileError) {
+          console.error(`Error downloading file ${i + 1}:`, fileError)
+          // Continue with other files even if one fails
+        }
+      }
+
+      // Show completion toast after all downloads are processed
+      showToast('success', 'Files Downloaded', `Successfully downloaded ${execution.generated_files.length} file(s). Check your downloads folder.`)
+
+    } catch (error) {
+      console.error('Error downloading files:', error)
+      showToast('error', 'Download Failed', 'An error occurred while downloading files. Please try again.')
+    } finally {
+      // Reset button state
+      const downloadButton = document.querySelector(`[data-download-files="${execution.id}"]`) as HTMLButtonElement
+      if (downloadButton) {
+        downloadButton.disabled = false
+        downloadButton.innerHTML = `
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m0 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          DOWNLOAD FILES
+        `
       }
     }
   }
@@ -2723,6 +3006,229 @@ export default function DashboardPage() {
                   </table>
                 </div>
               </div>
+
+              {/* Run Workflows Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Run Workflows</h3>
+                    <div className="text-sm text-gray-500">
+                      {workflowExecutions.length} execution{workflowExecutions.length !== 1 ? 's' : ''} found
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Executed By/ QUEUED By</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Template File</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Executed At / QUEUED At</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {workflowExecutionsLoading ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#5146E5]"></div>
+                              <span>Loading workflow executions...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : workflowExecutionsError ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-red-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                              <span>{workflowExecutionsError}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : workflowExecutions.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex flex-col items-center space-y-3">
+                              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                                <svg className="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z"/>
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-gray-500 font-medium">No workflow executions found</p>
+                                <p className="text-sm text-gray-400 mt-1">No workflows have been executed yet</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        workflowExecutions.map((execution, index) => {
+                          const workflow = workflowExecutionWorkflows[execution.workflow_id]
+                          const executedByUser = workflowExecutionUsers[execution.executed_by]
+                          
+                          return (
+                            <tr key={execution.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                                    {workflow?.workflow_name ? workflow.workflow_name.substring(0, 2).toUpperCase() : 'WF'}
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {workflow?.workflow_name || 'Unknown Workflow'}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                      Brand: {workflow?.brand_name || 'Unknown'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {executedByUser ? (
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-teal-600 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                      {executedByUser.full_name
+                                        ? executedByUser.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                        : executedByUser.first_name && executedByUser.last_name
+                                        ? `${executedByUser.first_name[0]}${executedByUser.last_name[0]}`.toUpperCase()
+                                        : executedByUser.email.substring(0, 2).toUpperCase()
+                                      }
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {executedByUser.full_name ||
+                                         (executedByUser.first_name && executedByUser.last_name
+                                           ? `${executedByUser.first_name} ${executedByUser.last_name}`
+                                           : 'Unknown User')}
+                                      </div>
+                                      <div className="text-xs text-gray-500">{executedByUser.email}</div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                      ?
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">Unknown User</div>
+                                      <div className="text-xs text-gray-500">
+                                        {execution.executed_by ? `ID: ${execution.executed_by.substring(0, 8)}` : 'No user ID'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {execution.template_file ? (
+                                  <div className="flex items-center">
+                                    <svg className="w-4 h-4 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <a
+                                      href={execution.template_file}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      View Template
+                                    </a>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-gray-400">No template</span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(execution.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {execution.status ? (
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    execution.status === 'SUCCESS'
+                                      ? 'bg-green-100 text-green-800'
+                                      : execution.status === 'QUEUED'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : execution.status === 'FAILED'
+                                      ? 'bg-red-100 text-red-800'
+                                      : execution.status === 'PENDING'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {execution.status}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                    UNKNOWN
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex items-center space-x-2">
+                                  {execution.status === 'QUEUED' && (
+                                    <button
+                                      onClick={() => handleRunWorkflowExecution(execution)}
+                                      data-run-execution={execution.id}
+                                      className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                    >
+                                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M8 5v14l11-7z"/>
+                                      </svg>
+                                      RUN
+                                    </button>
+                                  )}
+                                  {execution.status === 'SUCCESS' && (
+                                    <button
+                                      onClick={() => handleDownloadFiles(execution)}
+                                      data-download-files={execution.id}
+                                      className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                                    >
+                                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m0 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                      DOWNLOAD FILES
+                                    </button>
+                                  )}
+                                  {execution.status === 'FAILED' && (
+                                    <button
+                                      onClick={() => handleRunWorkflowExecution(execution)}
+                                      data-run-execution={execution.id}
+                                      className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                                    >
+                                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                      RETRY
+                                    </button>
+                                  )}
+                                  {(!execution.status || (execution.status !== 'QUEUED' && execution.status !== 'SUCCESS' && execution.status !== 'FAILED')) && (
+                                    <button className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      VIEW STATUS
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
@@ -4305,6 +4811,71 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`max-w-md w-full min-w-[400px] bg-white shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden animate-in slide-in-from-right-4 duration-300 ${
+              toast.type === 'success' ? 'border-l-4 border-green-500' :
+              toast.type === 'error' ? 'border-l-4 border-red-500' :
+              toast.type === 'warning' ? 'border-l-4 border-yellow-500' :
+              'border-l-4 border-blue-500'
+            }`}
+          >
+            <div className="p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  {toast.type === 'success' && (
+                    <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                  {toast.type === 'error' && (
+                    <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                  )}
+                  {toast.type === 'warning' && (
+                    <div className="w-6 h-6 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    </div>
+                  )}
+                  {toast.type === 'info' && (
+                    <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <div className="ml-3 w-0 flex-1 pt-0.5">
+                  <p className="text-sm font-medium text-gray-900">{toast.title}</p>
+                  <p className="mt-1 text-sm text-gray-500">{toast.message}</p>
+                </div>
+                <div className="ml-4 flex-shrink-0 flex">
+                  <button
+                    className="bg-white rounded-md inline-flex text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    onClick={() => removeToast(toast.id)}
+                  >
+                    <span className="sr-only">Close</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
