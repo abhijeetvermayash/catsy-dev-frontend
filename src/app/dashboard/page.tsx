@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
   const [internalTeamTab, setInternalTeamTab] = useState('members')
+  const [workflowRequestsTab, setWorkflowRequestsTab] = useState('pending')
   
   // Member action states
   const [selectedMember, setSelectedMember] = useState<any>(null)
@@ -29,6 +30,7 @@ export default function DashboardPage() {
   const [showWorkflowForm, setShowWorkflowForm] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
   const [workflowFormData, setWorkflowFormData] = useState({
+    workflowName: '',
     brandName: '',
     marketplaceChannels: [] as string[],
     dataSourceType: 'url' as 'url' | 'file',
@@ -44,6 +46,21 @@ export default function DashboardPage() {
   const [workflows, setWorkflows] = useState<any[]>([])
   const [workflowsLoading, setWorkflowsLoading] = useState(true)
   const [workflowsError, setWorkflowsError] = useState<string | null>(null)
+  const [workflowUsers, setWorkflowUsers] = useState<{[key: string]: any}>({})
+
+  // Workflow Requests data states
+  const [workflowRequests, setWorkflowRequests] = useState<any[]>([])
+  const [workflowRequestsLoading, setWorkflowRequestsLoading] = useState(true)
+  const [workflowRequestsError, setWorkflowRequestsError] = useState<string | null>(null)
+  const [workflowRequestUsers, setWorkflowRequestUsers] = useState<{[key: string]: any}>({})
+
+  // Mark as done modal states
+  const [showMarkAsDoneModal, setShowMarkAsDoneModal] = useState(false)
+  const [selectedWorkflowForCompletion, setSelectedWorkflowForCompletion] = useState<any>(null)
+  const [markAsDoneFormData, setMarkAsDoneFormData] = useState({
+    webhookUrl: '',
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE'
+  })
 
   useEffect(() => {
     setMounted(true)
@@ -63,6 +80,17 @@ export default function DashboardPage() {
       fetchWorkflows()
     }
   }, [user, profile])
+
+  // Fetch workflow requests when switching to workflow-requests tab
+  useEffect(() => {
+    if (activeTab === 'workflow-requests' && user && profile) {
+      if (workflowRequestsTab === 'pending') {
+        fetchWorkflowRequests('UNDER PROCESS')
+      } else {
+        fetchWorkflowRequests()
+      }
+    }
+  }, [activeTab, user, profile])
 
   // Function to fetch workflows
   const fetchWorkflows = async () => {
@@ -88,11 +116,101 @@ export default function DashboardPage() {
       }
       
       setWorkflows(data || [])
+      
+      // Fetch user details for all workflows
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map(w => w.user_id).filter(Boolean))]
+        
+        if (userIds.length > 0) {
+          const { data: usersData, error: usersError } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, full_name, email')
+            .in('id', userIds)
+          
+          if (!usersError && usersData) {
+            const usersMap = usersData.reduce((acc, user: any) => {
+              acc[user.id] = user
+              return acc
+            }, {} as {[key: string]: any})
+            setWorkflowUsers(usersMap)
+          }
+        }
+      }
     } catch (error) {
       console.error('Error in fetchWorkflows:', error)
       setWorkflowsError('An error occurred while loading workflows')
     } finally {
       setWorkflowsLoading(false)
+    }
+  }
+
+  // Function to fetch workflow requests
+  const fetchWorkflowRequests = async (status?: string) => {
+    if (!user?.id || !profile?.organization_id) return
+    
+    try {
+      setWorkflowRequestsLoading(true)
+      setWorkflowRequestsError(null)
+      
+      const supabase = createClient()
+      
+      // Build query for workflow requests
+      let query = supabase
+        .from('workflows')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      // Add status filter if provided
+      if (status === 'UNDER PROCESS') {
+        query = query.eq('status', 'UNDER PROCESS')
+      } else if (status === 'NOT_UNDER_PROCESS') {
+        query = query.neq('status', 'UNDER PROCESS')
+      }
+      
+      const { data, error } = await query
+      
+      if (error) {
+        console.error('Error fetching workflow requests:', error)
+        setWorkflowRequestsError('Failed to load workflow requests')
+        return
+      }
+      
+      setWorkflowRequests(data || [])
+      
+      // Fetch user details for all workflow requests
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map(w => w.user_id).filter(Boolean))]
+        
+        if (userIds.length > 0) {
+          const { data: usersData, error: usersError } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, full_name, email')
+            .in('id', userIds)
+          
+          if (!usersError && usersData) {
+            const usersMap = usersData.reduce((acc, user: any) => {
+              acc[user.id] = user
+              return acc
+            }, {} as {[key: string]: any})
+            setWorkflowRequestUsers(usersMap)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in fetchWorkflowRequests:', error)
+      setWorkflowRequestsError('An error occurred while loading workflow requests')
+    } finally {
+      setWorkflowRequestsLoading(false)
+    }
+  }
+
+  // Handler for workflow requests tab change
+  const handleWorkflowRequestsTabChange = (tab: string) => {
+    setWorkflowRequestsTab(tab)
+    if (tab === 'pending') {
+      fetchWorkflowRequests('UNDER PROCESS')
+    } else {
+      fetchWorkflowRequests('NOT_UNDER_PROCESS')
     }
   }
 
@@ -207,6 +325,77 @@ export default function DashboardPage() {
     }))
   }
 
+  // Handler to show mark as done modal
+  const handleMarkWorkflowAsDone = (workflow: any) => {
+    setSelectedWorkflowForCompletion(workflow)
+    setMarkAsDoneFormData({
+      webhookUrl: '',
+      status: 'ACTIVE'
+    })
+    setShowMarkAsDoneModal(true)
+  }
+
+  // Handler for mark as done form changes
+  const handleMarkAsDoneFormChange = (field: string, value: string) => {
+    setMarkAsDoneFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // Handler to confirm marking workflow as done
+  const confirmMarkWorkflowAsDone = async () => {
+    if (!selectedWorkflowForCompletion) return
+    
+    // Validate required fields
+    if (!markAsDoneFormData.webhookUrl.trim()) {
+      alert('Please enter a webhook URL.')
+      return
+    }
+    
+    try {
+      const supabase = createClient()
+      
+      // Update workflow with webhook URL and status
+      const { error } = await supabase
+        .from('workflows')
+        .update({
+          webhook_url: markAsDoneFormData.webhookUrl.trim(),
+          status: markAsDoneFormData.status
+        })
+        .eq('id', selectedWorkflowForCompletion.id)
+      
+      if (error) {
+        console.error('Error marking workflow as done:', error)
+        alert('Failed to mark workflow as done. Please try again.')
+        return
+      }
+      
+      // Close modal and reset state
+      setShowMarkAsDoneModal(false)
+      setSelectedWorkflowForCompletion(null)
+      setMarkAsDoneFormData({
+        webhookUrl: '',
+        status: 'ACTIVE'
+      })
+      
+      // Refresh the workflow requests data
+      if (workflowRequestsTab === 'pending') {
+        fetchWorkflowRequests('UNDER PROCESS')
+      } else {
+        fetchWorkflowRequests('NOT_UNDER_PROCESS')
+      }
+      
+      // Show success message
+      const actionText = selectedWorkflowForCompletion.status === 'UNDER PROCESS' ? 'marked as done' : 'updated'
+      alert(`Workflow ${actionText} successfully!`)
+      
+    } catch (error) {
+      console.error('Error in confirmMarkWorkflowAsDone:', error)
+      alert('An error occurred while marking workflow as done. Please try again.')
+    }
+  }
+
   // File upload utility function
   const uploadFileToSupabase = async (file: File, bucket: string, path: string): Promise<string | null> => {
     try {
@@ -319,6 +508,7 @@ export default function DashboardPage() {
       const workflowData = {
         user_id: user?.id,
         organisation_id: profile?.organization_id,
+        workflow_name: workflowFormData.workflowName,
         brand_name: workflowFormData.brandName,
         marketplace_channels: workflowFormData.marketplaceChannels,
         data_source_type: workflowFormData.dataSourceType,
@@ -382,6 +572,7 @@ export default function DashboardPage() {
     setShowWorkflowForm(false)
     setCurrentStep(1)
     setWorkflowFormData({
+      workflowName: '',
       brandName: '',
       marketplaceChannels: [],
       dataSourceType: 'url',
@@ -437,6 +628,20 @@ export default function DashboardPage() {
           </svg>
         ),
         permission: 'ADD_WORKFLOW_RAW_DATA'
+      })
+    }
+
+    // Workflow Requests - Show for users with BUILD_WORKFLOW permission
+    if (permissions.includes('BUILD_WORKFLOW')) {
+      items.push({
+        id: 'workflow-requests',
+        name: 'Workflow Requests',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+          </svg>
+        ),
+        permission: 'BUILD_WORKFLOW'
       })
     }
 
@@ -1735,7 +1940,9 @@ export default function DashboardPage() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marketplaces</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
@@ -1744,7 +1951,7 @@ export default function DashboardPage() {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {workflowsLoading ? (
                         <tr>
-                          <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                             <div className="flex items-center justify-center space-x-2">
                               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#5146E5]"></div>
                               <span>Loading workflows...</span>
@@ -1753,7 +1960,7 @@ export default function DashboardPage() {
                         </tr>
                       ) : workflowsError ? (
                         <tr>
-                          <td colSpan={4} className="px-6 py-8 text-center text-red-500">
+                          <td colSpan={6} className="px-6 py-8 text-center text-red-500">
                             <div className="flex items-center justify-center space-x-2">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -1764,7 +1971,7 @@ export default function DashboardPage() {
                         </tr>
                       ) : workflows.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                             <div className="flex flex-col items-center space-y-3">
                               <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1802,13 +2009,51 @@ export default function DashboardPage() {
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center">
                                   <div className="w-10 h-10 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-lg flex items-center justify-center text-white font-medium text-sm">
-                                    {workflow.brand_name.substring(0, 2).toUpperCase()}
+                                    {workflow.workflow_name ? workflow.workflow_name.substring(0, 2).toUpperCase() : 'WF'}
                                   </div>
                                   <div className="ml-4">
-                                    <div className="text-sm font-medium text-gray-900">{workflow.brand_name}</div>
+                                    <div className="text-sm font-medium text-gray-900">{workflow.workflow_name || 'Unnamed Workflow'}</div>
                                     <div className="text-sm text-gray-500">ID: {workflow.id.substring(0, 8)}</div>
                                   </div>
                                 </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">{workflow.brand_name}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {workflow.user_id && workflowUsers[workflow.user_id] ? (
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                      {workflowUsers[workflow.user_id].full_name
+                                        ? workflowUsers[workflow.user_id].full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                        : workflowUsers[workflow.user_id].first_name && workflowUsers[workflow.user_id].last_name
+                                        ? `${workflowUsers[workflow.user_id].first_name[0]}${workflowUsers[workflow.user_id].last_name[0]}`.toUpperCase()
+                                        : workflowUsers[workflow.user_id].email.substring(0, 2).toUpperCase()
+                                      }
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {workflowUsers[workflow.user_id].full_name ||
+                                         (workflowUsers[workflow.user_id].first_name && workflowUsers[workflow.user_id].last_name
+                                           ? `${workflowUsers[workflow.user_id].first_name} ${workflowUsers[workflow.user_id].last_name}`
+                                           : 'Unknown User')}
+                                      </div>
+                                      <div className="text-xs text-gray-500">{workflowUsers[workflow.user_id].email}</div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                      ?
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">Unknown User</div>
+                                      <div className="text-xs text-gray-500">
+                                        {workflow.user_id ? `ID: ${workflow.user_id.substring(0, 8)}` : 'No user ID'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex flex-wrap gap-1">
@@ -1849,8 +2094,243 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Workflow Requests Section */}
+          {activeTab === 'workflow-requests' && (
+            <div className="space-y-6">
+              {/* Workflow Requests Header */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Workflow Requests</h2>
+                    <p className="text-gray-600">Build and manage workflow processes</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Workflow Requests Content */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                {/* Tab Navigation */}
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="border-b border-gray-200">
+                      <nav className="-mb-px flex space-x-8">
+                        <button
+                          onClick={() => handleWorkflowRequestsTabChange('pending')}
+                          className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                            workflowRequestsTab === 'pending'
+                              ? 'border-[#5146E5] text-[#5146E5]'
+                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          }`}
+                        >
+                          Pending Workflows
+                        </button>
+                        <button
+                          onClick={() => handleWorkflowRequestsTabChange('all')}
+                          className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                            workflowRequestsTab === 'all'
+                              ? 'border-[#5146E5] text-[#5146E5]'
+                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          }`}
+                        >
+                          All Workflows
+                        </button>
+                      </nav>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {workflowRequestsTab === 'pending'
+                        ? `${workflowRequests.length} pending workflow${workflowRequests.length !== 1 ? 's' : ''}`
+                        : `${workflowRequests.length} total workflow${workflowRequests.length !== 1 ? 's' : ''}`
+                      }
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Workflows Table */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marketplaces</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {workflowRequestsLoading ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#5146E5]"></div>
+                              <span>Loading workflow requests...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : workflowRequestsError ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-red-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                              <span>{workflowRequestsError}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : workflowRequests.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex flex-col items-center space-y-3">
+                              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-gray-500 font-medium">
+                                  {workflowRequestsTab === 'pending' ? 'No pending workflows found' : 'No workflow requests found'}
+                                </p>
+                                <p className="text-sm text-gray-400 mt-1">
+                                  {workflowRequestsTab === 'pending'
+                                    ? 'All workflows have been processed'
+                                    : 'No workflow requests have been created yet'
+                                  }
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        workflowRequests.map((workflow, index) => {
+                          const statusColors = {
+                            'ACTIVE': 'bg-green-100 text-green-800',
+                            'INACTIVE': 'bg-gray-100 text-gray-800',
+                            'UNDER PROCESS': 'bg-yellow-100 text-yellow-800'
+                          }
+                          
+                          const statusColor = statusColors[workflow.status as keyof typeof statusColors] || statusColors['UNDER PROCESS']
+                          
+                          return (
+                            <tr key={workflow.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="w-10 h-10 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                                    {workflow.workflow_name ? workflow.workflow_name.substring(0, 2).toUpperCase() : 'WF'}
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">{workflow.workflow_name || 'Unnamed Workflow'}</div>
+                                    <div className="text-sm text-gray-500">ID: {workflow.id.substring(0, 8)}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">{workflow.brand_name}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {workflow.user_id && workflowRequestUsers[workflow.user_id] ? (
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                      {workflowRequestUsers[workflow.user_id].full_name
+                                        ? workflowRequestUsers[workflow.user_id].full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                        : workflowRequestUsers[workflow.user_id].first_name && workflowRequestUsers[workflow.user_id].last_name
+                                        ? `${workflowRequestUsers[workflow.user_id].first_name[0]}${workflowRequestUsers[workflow.user_id].last_name[0]}`.toUpperCase()
+                                        : workflowRequestUsers[workflow.user_id].email.substring(0, 2).toUpperCase()
+                                      }
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {workflowRequestUsers[workflow.user_id].full_name ||
+                                         (workflowRequestUsers[workflow.user_id].first_name && workflowRequestUsers[workflow.user_id].last_name
+                                           ? `${workflowRequestUsers[workflow.user_id].first_name} ${workflowRequestUsers[workflow.user_id].last_name}`
+                                           : 'Unknown User')}
+                                      </div>
+                                      <div className="text-xs text-gray-500">{workflowRequestUsers[workflow.user_id].email}</div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                      ?
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">Unknown User</div>
+                                      <div className="text-xs text-gray-500">
+                                        {workflow.user_id ? `ID: ${workflow.user_id.substring(0, 8)}` : 'No user ID'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex flex-wrap gap-1">
+                                  {workflow.marketplace_channels.slice(0, 2).map((channel: string) => (
+                                    <span key={channel} className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                      {channel}
+                                    </span>
+                                  ))}
+                                  {workflow.marketplace_channels.length > 2 && (
+                                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                      +{workflow.marketplace_channels.length - 2}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
+                                  {workflow.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(workflow.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex items-center space-x-2">
+                                  {workflowRequestsTab === 'pending' && workflow.status === 'UNDER PROCESS' && (
+                                    <button
+                                      onClick={() => handleMarkWorkflowAsDone(workflow)}
+                                      className="text-green-600 hover:text-green-900 font-medium transition-colors duration-200 hover:bg-green-50 px-2 py-1 rounded"
+                                    >
+                                      Mark as Done
+                                    </button>
+                                  )}
+                                  {workflowRequestsTab === 'all' && workflow.status !== 'UNDER PROCESS' && (
+                                    <button
+                                      onClick={() => handleMarkWorkflowAsDone(workflow)}
+                                      className="text-orange-600 hover:text-orange-900 font-medium transition-colors duration-200 hover:bg-orange-50 px-2 py-1 rounded"
+                                    >
+                                      Update
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                        
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Other tab content placeholders */}
-          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && activeTab !== 'workflows' && (
+          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && activeTab !== 'workflows' && activeTab !== 'workflow-requests' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
               <div className="text-center">
                 <h3 className="text-xl font-semibold text-gray-900 mb-2 capitalize">
@@ -2364,6 +2844,26 @@ export default function DashboardPage() {
                     </div>
                     <h4 className="text-2xl font-bold text-gray-900 mb-2">Basic Information</h4>
                     <p className="text-gray-600 max-w-md mx-auto">Let's start with the essentials. Tell us about your brand and where you want to sell.</p>
+                  </div>
+
+                  {/* Workflow Name Field */}
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <label className="block text-sm font-semibold text-gray-800 mb-3">
+                      <span className="flex items-center space-x-2">
+                        <svg className="w-4 h-4 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Workflow Name</span>
+                        <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={workflowFormData.workflowName}
+                      onChange={(e) => handleWorkflowFormChange('workflowName', e.target.value)}
+                      placeholder="Enter a descriptive name for this workflow (e.g., Nike Summer Collection 2024)"
+                      className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-[#5146E5] focus:border-[#5146E5] transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white font-medium text-lg shadow-sm hover:shadow-md"
+                    />
                   </div>
 
                   {/* Brand Name Field */}
@@ -2944,7 +3444,7 @@ export default function DashboardPage() {
                   onClick={handleNextStep}
                   data-submit-button
                   disabled={
-                    (currentStep === 1 && (!workflowFormData.brandName || workflowFormData.marketplaceChannels.length === 0)) ||
+                    (currentStep === 1 && (!workflowFormData.workflowName || !workflowFormData.brandName || workflowFormData.marketplaceChannels.length === 0)) ||
                     (currentStep === 2 && (
                       (workflowFormData.dataSourceType === 'url' && !workflowFormData.sourceSheetUrl) ||
                       (workflowFormData.dataSourceType === 'file' && !workflowFormData.uploadedFile)
@@ -2963,6 +3463,184 @@ export default function DashboardPage() {
                   </svg>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark as Done Modal */}
+      {showMarkAsDoneModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg mx-4 shadow-2xl animate-in zoom-in-95 duration-300">
+            {/* Modal Header */}
+            <div className="relative p-6 rounded-t-2xl text-white bg-gradient-to-r from-green-500 to-emerald-600">
+              <div className="absolute inset-0 bg-black/10 rounded-t-2xl"></div>
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white drop-shadow-sm">
+                      {selectedWorkflowForCompletion?.status === 'UNDER PROCESS' ? 'Mark as Done' : 'Update Workflow'}
+                    </h3>
+                    <p className="text-white/80 text-sm">
+                      {selectedWorkflowForCompletion?.status === 'UNDER PROCESS' ? 'Complete workflow processing' : 'Update workflow details'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowMarkAsDoneModal(false)}
+                  className="text-white/70 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {selectedWorkflowForCompletion && (
+                <>
+                  {/* Workflow Details Card */}
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                        {selectedWorkflowForCompletion.brand_name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-gray-600">Brand:</span>
+                          <span className="font-semibold text-gray-900">{selectedWorkflowForCompletion.brand_name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-sm font-medium text-gray-600">ID:</span>
+                          <span className="text-sm text-gray-500 font-mono">{selectedWorkflowForCompletion.id.substring(0, 8)}...</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Form Fields */}
+                  <div className="space-y-4">
+                    {/* Webhook URL Field */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">
+                        <span className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          <span>Webhook URL</span>
+                          <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      <input
+                        type="url"
+                        value={markAsDoneFormData.webhookUrl}
+                        onChange={(e) => handleMarkAsDoneFormChange('webhookUrl', e.target.value)}
+                        placeholder="https://example.com/webhook"
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white"
+                      />
+                    </div>
+
+                    {/* Status Field */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">
+                        <span className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>Status</span>
+                          <span className="text-red-500">*</span>
+                        </span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label
+                          className={`flex items-center justify-center p-3 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                            markAsDoneFormData.status === 'ACTIVE'
+                              ? 'border-green-500 bg-green-50 text-green-700'
+                              : 'border-gray-200 hover:border-gray-300 bg-white text-gray-700'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="status"
+                            value="ACTIVE"
+                            checked={markAsDoneFormData.status === 'ACTIVE'}
+                            onChange={(e) => handleMarkAsDoneFormChange('status', e.target.value)}
+                            className="sr-only"
+                          />
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                              markAsDoneFormData.status === 'ACTIVE'
+                                ? 'border-green-500 bg-green-500'
+                                : 'border-gray-300'
+                            }`}>
+                              {markAsDoneFormData.status === 'ACTIVE' && (
+                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                              )}
+                            </div>
+                            <span className="font-medium">ACTIVE</span>
+                          </div>
+                        </label>
+                        
+                        <label
+                          className={`flex items-center justify-center p-3 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                            markAsDoneFormData.status === 'INACTIVE'
+                              ? 'border-red-500 bg-red-50 text-red-700'
+                              : 'border-gray-200 hover:border-gray-300 bg-white text-gray-700'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="status"
+                            value="INACTIVE"
+                            checked={markAsDoneFormData.status === 'INACTIVE'}
+                            onChange={(e) => handleMarkAsDoneFormChange('status', e.target.value)}
+                            className="sr-only"
+                          />
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                              markAsDoneFormData.status === 'INACTIVE'
+                                ? 'border-red-500 bg-red-500'
+                                : 'border-gray-300'
+                            }`}>
+                              {markAsDoneFormData.status === 'INACTIVE' && (
+                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                              )}
+                            </div>
+                            <span className="font-medium">INACTIVE</span>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+              <button
+                onClick={() => setShowMarkAsDoneModal(false)}
+                className="px-6 py-3 text-gray-700 bg-white border-2 border-gray-200 rounded-xl font-semibold transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmMarkWorkflowAsDone}
+                disabled={!markAsDoneFormData.webhookUrl.trim()}
+                className="px-6 py-3 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-lg"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span>{selectedWorkflowForCompletion?.status === 'UNDER PROCESS' ? 'Mark as Done' : 'Update Workflow'}</span>
+              </button>
             </div>
           </div>
         </div>
