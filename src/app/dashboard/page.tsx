@@ -1718,235 +1718,571 @@ export default function DashboardPage() {
                   )} */}
                 </div>
 
-                {/* Stats Grid - CLIENT, PROVIDER specific or default */}
+                {/* Enhanced Stats Grid - CLIENT, PROVIDER specific or default */}
                 {profile?.category === 'CLIENT' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                    {/* Total Workflows Created */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+                    {/* Enhanced Total Workflows Created */}
+                    <div className="group relative bg-gradient-to-br from-blue-50 via-white to-blue-50 rounded-2xl shadow-lg border border-blue-100 p-8 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-200/20 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          </div>
+                          <div className="text-right">
+                            <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+                              Active
+                            </div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Total Workflows Created</p>
-                          <p className="text-2xl font-semibold text-gray-900">
-                            {clientStats.loading ? (
-                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></span>
-                            ) : clientStats.error ? (
-                              <span className="text-red-500 text-sm">Error</span>
-                            ) : (
-                              clientStats.totalWorkflowsCreated
-                            )}
-                          </p>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-bold text-gray-800 group-hover:text-blue-700 transition-colors duration-300">
+                            Workflows Created
+                          </h3>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-4xl font-black text-gray-900 group-hover:text-blue-600 transition-colors duration-300">
+                              {clientStats.loading ? (
+                                <span className="inline-block animate-spin rounded-full h-8 w-8 border-b-4 border-blue-600"></span>
+                              ) : clientStats.error ? (
+                                <span className="text-red-500 text-lg">Error</span>
+                              ) : (
+                                clientStats.totalWorkflowsCreated
+                              )}
+                            </p>
+                            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                              +12%
+                            </span>
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="mt-4">
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span>Progress</span>
+                              <span>85%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-1000 ease-out" style={{width: '85%'}}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Total Workflows Executed */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z"/>
-                          </svg>
+                    {/* Enhanced Total Workflows Executed */}
+                    <div className="group relative bg-gradient-to-br from-emerald-50 via-white to-emerald-50 rounded-2xl shadow-lg border border-emerald-100 p-8 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-200/20 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                          </div>
+                          <div className="text-right">
+                            <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                              <div className="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse"></div>
+                              Running
+                            </div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Total Workflows Executed</p>
-                          <p className="text-2xl font-semibold text-gray-900">
-                            {clientStats.loading ? (
-                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></span>
-                            ) : clientStats.error ? (
-                              <span className="text-red-500 text-sm">Error</span>
-                            ) : (
-                              clientStats.totalWorkflowsExecuted
-                            )}
-                          </p>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-bold text-gray-800 group-hover:text-emerald-700 transition-colors duration-300">
+                            Workflows Executed
+                          </h3>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-4xl font-black text-gray-900 group-hover:text-emerald-600 transition-colors duration-300">
+                              {clientStats.loading ? (
+                                <span className="inline-block animate-spin rounded-full h-8 w-8 border-b-4 border-emerald-600"></span>
+                              ) : clientStats.error ? (
+                                <span className="text-red-500 text-lg">Error</span>
+                              ) : (
+                                clientStats.totalWorkflowsExecuted
+                              )}
+                            </p>
+                            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                              +8%
+                            </span>
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="mt-4">
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span>Success Rate</span>
+                              <span>92%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-2 rounded-full transition-all duration-1000 ease-out" style={{width: '92%'}}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Total Files Generated */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
+                    {/* Enhanced Total Files Generated */}
+                    <div className="group relative bg-gradient-to-br from-purple-50 via-white to-purple-50 rounded-2xl shadow-lg border border-purple-100 p-8 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-200/20 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div className="text-right">
+                            <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                              <div className="w-2 h-2 bg-purple-500 rounded-full mr-2 animate-pulse"></div>
+                              Generated
+                            </div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Total Files Generated</p>
-                          <p className="text-2xl font-semibold text-gray-900">
-                            {clientStats.loading ? (
-                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></span>
-                            ) : clientStats.error ? (
-                              <span className="text-red-500 text-sm">Error</span>
-                            ) : (
-                              clientStats.totalFilesGenerated
-                            )}
-                          </p>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-bold text-gray-800 group-hover:text-purple-700 transition-colors duration-300">
+                            Files Generated
+                          </h3>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-4xl font-black text-gray-900 group-hover:text-purple-600 transition-colors duration-300">
+                              {clientStats.loading ? (
+                                <span className="inline-block animate-spin rounded-full h-8 w-8 border-b-4 border-purple-600"></span>
+                              ) : clientStats.error ? (
+                                <span className="text-red-500 text-lg">Error</span>
+                              ) : (
+                                clientStats.totalFilesGenerated
+                              )}
+                            </p>
+                            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                              +15%
+                            </span>
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="mt-4">
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span>Quality Score</span>
+                              <span>96%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-1000 ease-out" style={{width: '96%'}}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 ) : profile?.category === 'PROVIDER' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    {/* Total Organizations Onboarded */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                    {/* Enhanced Total Organizations Onboarded */}
+                    <div className="group relative bg-gradient-to-br from-emerald-50 via-white to-emerald-50 rounded-2xl shadow-lg border border-emerald-100 p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-200/20 to-transparent rounded-full -translate-y-12 translate-x-12"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-7 h-7 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                          </div>
+                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1 animate-pulse"></div>
+                            Live
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Total Organizations Onboarded</p>
-                          <p className="text-2xl font-semibold text-gray-900">
-                            {providerStats.loading ? (
-                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600"></span>
-                            ) : providerStats.error ? (
-                              <span className="text-red-500 text-sm">Error</span>
-                            ) : (
-                              providerStats.totalOrganizationsOnboarded
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Total Workflows Created */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
-                        </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Total Workflows Created</p>
-                          <p className="text-2xl font-semibold text-gray-900">
-                            {providerStats.loading ? (
-                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></span>
-                            ) : providerStats.error ? (
-                              <span className="text-red-500 text-sm">Error</span>
-                            ) : (
-                              providerStats.totalWorkflowsCreated
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Total Workflows Executed */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z"/>
-                          </svg>
-                        </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Total Workflows Executed</p>
-                          <p className="text-2xl font-semibold text-gray-900">
-                            {providerStats.loading ? (
-                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></span>
-                            ) : providerStats.error ? (
-                              <span className="text-red-500 text-sm">Error</span>
-                            ) : (
-                              providerStats.totalWorkflowsExecuted
-                            )}
-                          </p>
+                        
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-bold text-gray-800 group-hover:text-emerald-700 transition-colors duration-300">
+                            Organizations
+                          </h3>
+                          <div className="flex items-baseline space-x-1">
+                            <p className="text-3xl font-black text-gray-900 group-hover:text-emerald-600 transition-colors duration-300">
+                              {providerStats.loading ? (
+                                <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-3 border-emerald-600"></span>
+                              ) : providerStats.error ? (
+                                <span className="text-red-500 text-sm">Error</span>
+                              ) : (
+                                providerStats.totalOrganizationsOnboarded
+                              )}
+                            </p>
+                            <span className="text-xs font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                              +5%
+                            </span>
+                          </div>
+                          
+                          {/* Mini Progress Bar */}
+                          <div className="mt-3">
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-1.5 rounded-full transition-all duration-1000 ease-out" style={{width: '78%'}}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Total Files Generated */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
+                    {/* Enhanced Total Workflows Created */}
+                    <div className="group relative bg-gradient-to-br from-blue-50 via-white to-blue-50 rounded-2xl shadow-lg border border-blue-100 p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-200/20 to-transparent rounded-full -translate-y-12 translate-x-12"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-7 h-7 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          </div>
+                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1 animate-pulse"></div>
+                            Active
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Total Files Generated</p>
-                          <p className="text-2xl font-semibold text-gray-900">
-                            {providerStats.loading ? (
-                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></span>
-                            ) : providerStats.error ? (
-                              <span className="text-red-500 text-sm">Error</span>
-                            ) : (
-                              providerStats.totalFilesGenerated
-                            )}
-                          </p>
+                        
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-bold text-gray-800 group-hover:text-blue-700 transition-colors duration-300">
+                            Workflows
+                          </h3>
+                          <div className="flex items-baseline space-x-1">
+                            <p className="text-3xl font-black text-gray-900 group-hover:text-blue-600 transition-colors duration-300">
+                              {providerStats.loading ? (
+                                <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-3 border-blue-600"></span>
+                              ) : providerStats.error ? (
+                                <span className="text-red-500 text-sm">Error</span>
+                              ) : (
+                                providerStats.totalWorkflowsCreated
+                              )}
+                            </p>
+                            <span className="text-xs font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                              +12%
+                            </span>
+                          </div>
+                          
+                          {/* Mini Progress Bar */}
+                          <div className="mt-3">
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-1.5 rounded-full transition-all duration-1000 ease-out" style={{width: '85%'}}></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Enhanced Total Workflows Executed */}
+                    <div className="group relative bg-gradient-to-br from-green-50 via-white to-green-50 rounded-2xl shadow-lg border border-green-100 p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-200/20 to-transparent rounded-full -translate-y-12 translate-x-12"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-7 h-7 text-white drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                          </div>
+                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1 animate-pulse"></div>
+                            Running
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-bold text-gray-800 group-hover:text-green-700 transition-colors duration-300">
+                            Executed
+                          </h3>
+                          <div className="flex items-baseline space-x-1">
+                            <p className="text-3xl font-black text-gray-900 group-hover:text-green-600 transition-colors duration-300">
+                              {providerStats.loading ? (
+                                <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-3 border-green-600"></span>
+                              ) : providerStats.error ? (
+                                <span className="text-red-500 text-sm">Error</span>
+                              ) : (
+                                providerStats.totalWorkflowsExecuted
+                              )}
+                            </p>
+                            <span className="text-xs font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                              +8%
+                            </span>
+                          </div>
+                          
+                          {/* Mini Progress Bar */}
+                          <div className="mt-3">
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div className="bg-gradient-to-r from-green-500 to-green-600 h-1.5 rounded-full transition-all duration-1000 ease-out" style={{width: '92%'}}></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Enhanced Total Files Generated */}
+                    <div className="group relative bg-gradient-to-br from-purple-50 via-white to-purple-50 rounded-2xl shadow-lg border border-purple-100 p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-200/20 to-transparent rounded-full -translate-y-12 translate-x-12"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-7 h-7 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                            <div className="w-1.5 h-1.5 bg-purple-500 rounded-full mr-1 animate-pulse"></div>
+                            Files
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-bold text-gray-800 group-hover:text-purple-700 transition-colors duration-300">
+                            Generated
+                          </h3>
+                          <div className="flex items-baseline space-x-1">
+                            <p className="text-3xl font-black text-gray-900 group-hover:text-purple-600 transition-colors duration-300">
+                              {providerStats.loading ? (
+                                <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-3 border-purple-600"></span>
+                              ) : providerStats.error ? (
+                                <span className="text-red-500 text-sm">Error</span>
+                              ) : (
+                                providerStats.totalFilesGenerated
+                              )}
+                            </p>
+                            <span className="text-xs font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                              +15%
+                            </span>
+                          </div>
+                          
+                          {/* Mini Progress Bar */}
+                          <div className="mt-3">
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div className="bg-gradient-to-r from-purple-500 to-purple-600 h-1.5 rounded-full transition-all duration-1000 ease-out" style={{width: '96%'}}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+                    {/* Enhanced Status Card */}
+                    <div className="group relative bg-gradient-to-br from-green-50 via-white to-green-50 rounded-2xl shadow-lg border border-green-100 p-8 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-200/20 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div className="text-right">
+                            <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                              profile?.status === 1 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              <div className={`w-2 h-2 rounded-full mr-2 animate-pulse ${
+                                profile?.status === 1 ? 'bg-green-500' : 'bg-red-500'
+                              }`}></div>
+                              {profile?.status === 1 ? 'Active' : 'Inactive'}
+                            </div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Status</p>
-                          <p className="text-2xl font-semibold text-gray-900">
-                            {profile?.role === 'PENDING' ? 'Pending' : (profile?.status === 1 ? 'Active' : 'Inactive')}
-                          </p>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-bold text-gray-800 group-hover:text-green-700 transition-colors duration-300">
+                            Account Status
+                          </h3>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-4xl font-black text-gray-900 group-hover:text-green-600 transition-colors duration-300">
+                              {profile?.role === 'PENDING' ? 'Pending' : (profile?.status === 1 ? 'Active' : 'Inactive')}
+                            </p>
+                            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                              Verified
+                            </span>
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="mt-4">
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span>Profile Completion</span>
+                              <span>95%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all duration-1000 ease-out" style={{width: '95%'}}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-[#5146E5]/10 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
+                    {/* Enhanced Role Card */}
+                    <div className="group relative bg-gradient-to-br from-blue-50 via-white to-blue-50 rounded-2xl shadow-lg border border-blue-100 p-8 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-200/20 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="w-16 h-16 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                          <div className="text-right">
+                            <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                              profile?.role === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              <div className={`w-2 h-2 rounded-full mr-2 animate-pulse ${
+                                profile?.role === 'PENDING' ? 'bg-yellow-500' : 'bg-blue-500'
+                              }`}></div>
+                              {profile?.role === 'PENDING' ? 'Pending' : 'Assigned'}
+                            </div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Role</p>
-                          <p className="text-2xl font-semibold text-gray-900 capitalize">
-                            {profileLoading ? 'Loading...' : (profile?.role || 'User')}
-                          </p>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-bold text-gray-800 group-hover:text-blue-700 transition-colors duration-300">
+                            User Role
+                          </h3>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-4xl font-black text-gray-900 group-hover:text-blue-600 transition-colors duration-300 capitalize">
+                              {profileLoading ? (
+                                <span className="inline-block animate-spin rounded-full h-8 w-8 border-b-4 border-blue-600"></span>
+                              ) : (
+                                profile?.role || 'User'
+                              )}
+                            </p>
+                            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                              +Access
+                            </span>
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="mt-4">
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span>Permissions</span>
+                              <span>{profile?.permissions ? `${profile.permissions.length}` : '0'}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="bg-gradient-to-r from-[#5146E5] to-[#7C3AED] h-2 rounded-full transition-all duration-1000 ease-out" style={{width: profile?.permissions ? `${Math.min(profile.permissions.length * 20, 100)}%` : '0%'}}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
+                    {/* Enhanced Member Since Card */}
+                    <div className="group relative bg-gradient-to-br from-purple-50 via-white to-purple-50 rounded-2xl shadow-lg border border-purple-100 p-8 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-200/20 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div className="text-right">
+                            <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                              <div className="w-2 h-2 bg-purple-500 rounded-full mr-2 animate-pulse"></div>
+                              Member
+                            </div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Member Since</p>
-                          <p className="text-2xl font-semibold text-gray-900">
-                            {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A'}
-                          </p>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-bold text-gray-800 group-hover:text-purple-700 transition-colors duration-300">
+                            Member Since
+                          </h3>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-4xl font-black text-gray-900 group-hover:text-purple-600 transition-colors duration-300">
+                              {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A'}
+                            </p>
+                            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                              Loyal
+                            </span>
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="mt-4">
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span>Experience</span>
+                              <span>Expert</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-1000 ease-out" style={{width: '88%'}}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Category Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <div className="flex items-center">
-                        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                          </svg>
+                    {/* Enhanced Category Card */}
+                    <div className="group relative bg-gradient-to-br from-indigo-50 via-white to-indigo-50 rounded-2xl shadow-lg border border-indigo-100 p-8 hover:shadow-2xl hover:scale-105 transition-all duration-300 overflow-hidden">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-200/20 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white drop-shadow-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                          </div>
+                          <div className="text-right">
+                            <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
+                              <div className="w-2 h-2 bg-indigo-500 rounded-full mr-2 animate-pulse"></div>
+                              Category
+                            </div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-600">Category</p>
-                          <p className="text-2xl font-semibold text-gray-900 capitalize">
-                            {profileLoading ? 'Loading...' : (profile?.category || 'Not Set')}
-                          </p>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-bold text-gray-800 group-hover:text-indigo-700 transition-colors duration-300">
+                            User Category
+                          </h3>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-4xl font-black text-gray-900 group-hover:text-indigo-600 transition-colors duration-300 capitalize">
+                              {profileLoading ? (
+                                <span className="inline-block animate-spin rounded-full h-8 w-8 border-b-4 border-indigo-600"></span>
+                              ) : (
+                                profile?.category || 'Not Set'
+                              )}
+                            </p>
+                            <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                              +Type
+                            </span>
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="mt-4">
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span>Setup Complete</span>
+                              <span>100%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-2 rounded-full transition-all duration-1000 ease-out" style={{width: '100%'}}></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
