@@ -58,8 +58,18 @@ export default function DashboardPage() {
   const [workflowExecutions, setWorkflowExecutions] = useState<any[]>([])
   const [workflowExecutionsLoading, setWorkflowExecutionsLoading] = useState(true)
   const [workflowExecutionsError, setWorkflowExecutionsError] = useState<string | null>(null)
-  const [workflowExecutionUsers, setWorkflowExecutionUsers] = useState<{[key: string]: any}>({})
-  const [workflowExecutionWorkflows, setWorkflowExecutionWorkflows] = useState<{[key: string]: any}>({})
+  const [workflowExecutionUsers, setWorkflowExecutionUsers] = useState<{[key: string]: {
+    id: string;
+    first_name?: string;
+    last_name?: string;
+    full_name?: string;
+    email: string;
+  }}>({})
+  const [workflowExecutionWorkflows, setWorkflowExecutionWorkflows] = useState<{[key: string]: {
+    id: string;
+    workflow_name: string;
+    brand_name: string;
+  }}>({})
 
   // Workflow Requests data states
   const [workflowRequests, setWorkflowRequests] = useState<any[]>([])
@@ -69,7 +79,12 @@ export default function DashboardPage() {
 
   // Mark as done modal states
   const [showMarkAsDoneModal, setShowMarkAsDoneModal] = useState(false)
-  const [selectedWorkflowForCompletion, setSelectedWorkflowForCompletion] = useState<any>(null)
+  const [selectedWorkflowForCompletion, setSelectedWorkflowForCompletion] = useState<{
+    id: string;
+    workflow_name: string;
+    brand_name: string;
+    status: string;
+  } | null>(null)
   const [markAsDoneFormData, setMarkAsDoneFormData] = useState({
     webhookUrl: '',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE'
@@ -77,7 +92,12 @@ export default function DashboardPage() {
 
   // Run workflow modal states
   const [showRunWorkflowModal, setShowRunWorkflowModal] = useState(false)
-  const [selectedWorkflowForRun, setSelectedWorkflowForRun] = useState<any>(null)
+  const [selectedWorkflowForRun, setSelectedWorkflowForRun] = useState<{
+    id: string;
+    workflow_name: string;
+    brand_name: string;
+    webhook_url?: string;
+  } | null>(null)
   const [runWorkflowFormData, setRunWorkflowFormData] = useState({
     templateSourceType: 'url' as 'url' | 'file',
     templateUrl: '',
@@ -104,7 +124,11 @@ export default function DashboardPage() {
   })
 
   // Organizations data states for Clients tab
-  const [organizations, setOrganizations] = useState<any[]>([])
+  const [organizations, setOrganizations] = useState<{
+    id: string;
+    name: string;
+    created_at: string;
+  }[]>([])
   const [organizationsLoading, setOrganizationsLoading] = useState(true)
   const [organizationsError, setOrganizationsError] = useState<string | null>(null)
 
@@ -145,8 +169,11 @@ export default function DashboardPage() {
   }, [user, loading, router])
 
   // Function to fetch workflows
-  const fetchWorkflows = async () => {
-    if (!user?.id || !profile?.organization_id) return
+  const fetchWorkflows = useCallback(async () => {
+    if (!user?.id || !profile?.organization_id) {
+      setWorkflowsLoading(false)
+      return
+    }
     
     try {
       setWorkflowsLoading(true)
@@ -194,7 +221,7 @@ export default function DashboardPage() {
     } finally {
       setWorkflowsLoading(false)
     }
-  }
+  }, [user?.id, profile?.organization_id])
 
   // Function to fetch active workflows for Create Listings
   const fetchActiveWorkflows = useCallback(async () => {
@@ -336,18 +363,8 @@ export default function DashboardPage() {
     if (user && profile) {
       fetchWorkflows()
     }
-  }, [user, profile])
+  }, [user, profile, fetchWorkflows])
 
-  // Fetch workflow requests when switching to workflow-requests tab
-  useEffect(() => {
-    if (activeTab === 'workflow-requests' && user && profile) {
-      if (workflowRequestsTab === 'pending') {
-        fetchWorkflowRequests('UNDER PROCESS')
-      } else {
-        fetchWorkflowRequests()
-      }
-    }
-  }, [activeTab, user, profile])
 
   // Fetch active workflows and workflow executions when switching to create-listings tab
   useEffect(() => {
@@ -365,8 +382,11 @@ export default function DashboardPage() {
   }, [activeTab, user, profile, fetchWorkflowExecutions])
 
   // Function to fetch workflow requests
-  const fetchWorkflowRequests = async (status?: string) => {
-    if (!user?.id || !profile?.organization_id) return
+  const fetchWorkflowRequests = useCallback(async (status?: string) => {
+    if (!user?.id || !profile?.organization_id) {
+      setWorkflowRequestsLoading(false)
+      return
+    }
     
     try {
       setWorkflowRequestsLoading(true)
@@ -422,7 +442,28 @@ export default function DashboardPage() {
     } finally {
       setWorkflowRequestsLoading(false)
     }
-  }
+  }, [user?.id, profile?.organization_id])
+
+  // Handler for workflow requests tab change
+  const handleWorkflowRequestsTabChange = useCallback((tab: string) => {
+    setWorkflowRequestsTab(tab)
+    if (tab === 'pending') {
+      fetchWorkflowRequests('UNDER PROCESS')
+    } else {
+      fetchWorkflowRequests('NOT_UNDER_PROCESS')
+    }
+  }, [fetchWorkflowRequests])
+
+  // Fetch workflow requests when switching to workflow-requests tab
+  useEffect(() => {
+    if (activeTab === 'workflow-requests' && user && profile) {
+      if (workflowRequestsTab === 'pending') {
+        fetchWorkflowRequests('UNDER PROCESS')
+      } else {
+        fetchWorkflowRequests('NOT_UNDER_PROCESS')
+      }
+    }
+  }, [activeTab, user, profile, workflowRequestsTab, fetchWorkflowRequests])
 
   // Function to fetch CLIENT dashboard statistics
   const fetchClientStats = useCallback(async () => {
@@ -605,7 +646,7 @@ export default function DashboardPage() {
       }
       
       console.log('Organizations fetched:', data?.length || 0)
-      setOrganizations(data || [])
+      setOrganizations(data as any[] || [])
       
     } catch (error) {
       console.error('Error in fetchOrganizations:', error)
@@ -636,15 +677,6 @@ export default function DashboardPage() {
     }
   }, [activeTab, user, profile, fetchOrganizations])
 
-  // Handler for workflow requests tab change
-  const handleWorkflowRequestsTabChange = (tab: string) => {
-    setWorkflowRequestsTab(tab)
-    if (tab === 'pending') {
-      fetchWorkflowRequests('UNDER PROCESS')
-    } else {
-      fetchWorkflowRequests('NOT_UNDER_PROCESS')
-    }
-  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -652,13 +684,33 @@ export default function DashboardPage() {
   }
 
   // Member action handlers
-  const handleAssignRole = (member: any) => {
+  const handleAssignRole = (member: {
+    id: string;
+    email: string;
+    role?: string;
+    status: number;
+    organization_id?: string;
+    full_name?: string;
+    first_name?: string;
+    last_name?: string;
+    created_at: string;
+  }) => {
     setSelectedMember(member)
     setSelectedRole(member.role || '')
     setShowAssignRoleModal(true)
   }
 
-  const handleToggleStatus = (member: any) => {
+  const handleToggleStatus = (member: {
+    id: string;
+    email: string;
+    role?: string;
+    status: number;
+    organization_id?: string;
+    full_name?: string;
+    first_name?: string;
+    last_name?: string;
+    created_at: string;
+  }) => {
     setSelectedMember(member)
     setActionType(member.status === 1 ? 'deactivate' : 'activate')
     setShowStatusModal(true)
@@ -758,7 +810,12 @@ export default function DashboardPage() {
   }
 
   // Handler to show mark as done modal
-  const handleMarkWorkflowAsDone = (workflow: any) => {
+  const handleMarkWorkflowAsDone = (workflow: {
+    id: string;
+    workflow_name: string;
+    brand_name: string;
+    status: string;
+  }) => {
     setSelectedWorkflowForCompletion(workflow)
     setMarkAsDoneFormData({
       webhookUrl: '',
@@ -829,7 +886,12 @@ export default function DashboardPage() {
   }
 
   // Handler to show run workflow modal
-  const handleRunWorkflow = (workflow: any) => {
+  const handleRunWorkflow = (workflow: {
+    id: string;
+    workflow_name: string;
+    brand_name: string;
+    webhook_url?: string;
+  }) => {
     setSelectedWorkflowForRun(workflow)
     setRunWorkflowFormData({
       templateSourceType: 'url',
@@ -953,7 +1015,12 @@ export default function DashboardPage() {
   }
 
   // Handler to run workflow execution
-  const handleRunWorkflowExecution = async (execution: any) => {
+  const handleRunWorkflowExecution = async (execution: {
+    id: string;
+    webhook_url?: string;
+    workflow_id: string;
+    template_file?: string;
+  }) => {
     if (!execution.webhook_url) {
       alert('No webhook URL found for this execution.')
       return
@@ -1049,7 +1116,10 @@ export default function DashboardPage() {
   }
 
   // Handler to download files from generated_files
-  const handleDownloadFiles = async (execution: any) => {
+  const handleDownloadFiles = async (execution: {
+    id: string;
+    generated_files?: string[];
+  }) => {
     if (!execution.generated_files || execution.generated_files.length === 0) {
       showToast('warning', 'No Files Available', 'No files available for download.')
       return
@@ -2555,13 +2625,13 @@ export default function DashboardPage() {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                           <div className="flex items-center space-x-2">
                                             <button
-                                              onClick={() => handleAssignRole(member)}
+                                              onClick={() => handleAssignRole(member as any)}
                                               className="text-blue-600 hover:text-blue-900 font-medium"
                                             >
                                               Assign Role
                                             </button>
                                             <button
-                                              onClick={() => handleToggleStatus(member)}
+                                              onClick={() => handleToggleStatus(member as any)}
                                               className={`font-medium ${
                                                 member.status === 1
                                                   ? 'text-red-600 hover:text-red-900'
@@ -2931,13 +3001,13 @@ export default function DashboardPage() {
                                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div className="flex items-center space-x-2">
                                           <button
-                                            onClick={() => handleAssignRole(member)}
+                                            onClick={() => handleAssignRole(member as any)}
                                             className="text-blue-600 hover:text-blue-900 font-medium"
                                           >
                                             Assign Role
                                           </button>
                                           <button
-                                            onClick={() => handleToggleStatus(member)}
+                                            onClick={() => handleToggleStatus(member as any)}
                                             className={`font-medium ${
                                               member.status === 1
                                                 ? 'text-red-600 hover:text-red-900'
@@ -3257,7 +3327,7 @@ export default function DashboardPage() {
                           </td>
                         </tr>
                       ) : (
-                        workflows.map((workflow, index) => {
+                        workflows.map((workflow) => {
                           const statusColors = {
                             'ACTIVE': 'bg-green-100 text-green-800',
                             'INACTIVE': 'bg-gray-100 text-gray-800',
@@ -3290,7 +3360,7 @@ export default function DashboardPage() {
                                         ? workflowUsers[workflow.user_id].full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
                                         : workflowUsers[workflow.user_id].first_name && workflowUsers[workflow.user_id].last_name
                                         ? `${workflowUsers[workflow.user_id].first_name[0]}${workflowUsers[workflow.user_id].last_name[0]}`.toUpperCase()
-                                        : workflowUsers[workflow.user_id].email.substring(0, 2).toUpperCase()
+                                        : workflowUsers[workflow.user_id].email?.substring(0, 2).toUpperCase()
                                       }
                                     </div>
                                     <div>
@@ -3471,7 +3541,7 @@ export default function DashboardPage() {
                           </td>
                         </tr>
                       ) : (
-                        workflowRequests.map((workflow, index) => {
+                        workflowRequests.map((workflow) => {
                           const statusColors = {
                             'ACTIVE': 'bg-green-100 text-green-800',
                             'INACTIVE': 'bg-gray-100 text-gray-800',
@@ -3500,11 +3570,11 @@ export default function DashboardPage() {
                                 {workflow.user_id && workflowRequestUsers[workflow.user_id] ? (
                                   <div className="flex items-center">
                                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
-                                      {workflowRequestUsers[workflow.user_id].full_name
+                                      {workflowRequestUsers[workflow.user_id]?.full_name
                                         ? workflowRequestUsers[workflow.user_id].full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
-                                        : workflowRequestUsers[workflow.user_id].first_name && workflowRequestUsers[workflow.user_id].last_name
+                                        : workflowRequestUsers[workflow.user_id]?.first_name && workflowRequestUsers[workflow.user_id]?.last_name
                                         ? `${workflowRequestUsers[workflow.user_id].first_name[0]}${workflowRequestUsers[workflow.user_id].last_name[0]}`.toUpperCase()
-                                        : workflowRequestUsers[workflow.user_id].email.substring(0, 2).toUpperCase()
+                                        : workflowRequestUsers[workflow.user_id]?.email?.substring(0, 2).toUpperCase()
                                       }
                                     </div>
                                     <div>
@@ -3671,7 +3741,7 @@ export default function DashboardPage() {
                           </td>
                         </tr>
                       ) : (
-                        activeWorkflows.map((workflow, index) => {
+                        activeWorkflows.map((workflow) => {
                           const statusColors = {
                             'ACTIVE': 'bg-green-100 text-green-800',
                             'INACTIVE': 'bg-gray-100 text-gray-800',
@@ -3704,7 +3774,7 @@ export default function DashboardPage() {
                                         ? activeWorkflowUsers[workflow.user_id].full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
                                         : activeWorkflowUsers[workflow.user_id].first_name && activeWorkflowUsers[workflow.user_id].last_name
                                         ? `${activeWorkflowUsers[workflow.user_id].first_name[0]}${activeWorkflowUsers[workflow.user_id].last_name[0]}`.toUpperCase()
-                                        : activeWorkflowUsers[workflow.user_id].email.substring(0, 2).toUpperCase()
+                                        : activeWorkflowUsers[workflow.user_id].email?.substring(0, 2).toUpperCase()
                                       }
                                     </div>
                                     <div>
@@ -3842,7 +3912,7 @@ export default function DashboardPage() {
                           </td>
                         </tr>
                       ) : (
-                        workflowExecutions.map((execution, index) => {
+                        workflowExecutions.map((execution) => {
                           const workflow = workflowExecutionWorkflows[execution.workflow_id]
                           const executedByUser = workflowExecutionUsers[execution.executed_by]
                           
@@ -4087,7 +4157,7 @@ export default function DashboardPage() {
                       ) : (
                         workflowExecutions
                           .filter(execution => execution.status === 'SUCCESS')
-                          .map((execution, index) => {
+                          .map((execution) => {
                             const workflow = workflowExecutionWorkflows[execution.workflow_id]
                             const executedByUser = workflowExecutionUsers[execution.executed_by]
                             
@@ -4276,7 +4346,7 @@ export default function DashboardPage() {
                           </td>
                         </tr>
                       ) : (
-                        organizations.map((organization, index) => (
+                        organizations.map((organization) => (
                           <tr key={organization.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">

@@ -72,13 +72,13 @@ export function useExternalTeamMembers() {
       console.log('Organizations data:', organizationsData)
 
       // Create a map of organization_id to organization_name
-      const orgMap = new Map()
-      organizationsData?.forEach(org => {
+      const orgMap = new Map<string, string>()
+      organizationsData?.forEach((org: any) => {
         orgMap.set(org.id, org.name)
       })
 
       // Transform the data to include organization_name
-      const transformedData = profilesData.map(member => ({
+      const transformedData = profilesData.map((member: any) => ({
         ...member,
         organization_name: orgMap.get(member.organization_id) || 'Unknown Organization'
       }))
