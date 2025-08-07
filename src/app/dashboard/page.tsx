@@ -93,6 +93,21 @@ export default function DashboardPage() {
     error: null as string | null
   })
 
+  // PROVIDER dashboard statistics states
+  const [providerStats, setProviderStats] = useState({
+    totalOrganizationsOnboarded: 0,
+    totalWorkflowsCreated: 0,
+    totalWorkflowsExecuted: 0,
+    totalFilesGenerated: 0,
+    loading: true,
+    error: null as string | null
+  })
+
+  // Organizations data states for Clients tab
+  const [organizations, setOrganizations] = useState<any[]>([])
+  const [organizationsLoading, setOrganizationsLoading] = useState(true)
+  const [organizationsError, setOrganizationsError] = useState<string | null>(null)
+
   // Toast notification states
   const [toasts, setToasts] = useState<Array<{
     id: string
@@ -408,6 +423,218 @@ export default function DashboardPage() {
       setWorkflowRequestsLoading(false)
     }
   }
+
+  // Function to fetch CLIENT dashboard statistics
+  const fetchClientStats = useCallback(async () => {
+    if (!user?.id || !profile?.organization_id || profile?.category !== 'CLIENT') {
+      setClientStats(prev => ({ ...prev, loading: false }))
+      return
+    }
+    
+    try {
+      setClientStats(prev => ({ ...prev, loading: true, error: null }))
+      
+      const supabase = createClient()
+      
+      console.log('Fetching CLIENT stats for organization:', profile.organization_id)
+      
+      // Fetch total workflows created
+      const { count: workflowsCreated, error: workflowsError } = await supabase
+        .from('workflows')
+        .select('*', { count: 'exact', head: true })
+        .eq('organisation_id', profile.organization_id)
+      
+      if (workflowsError) {
+        console.error('Error fetching workflows count:', workflowsError)
+        throw workflowsError
+      }
+      
+      // Fetch total workflows executed
+      const { count: workflowsExecuted, error: executedError } = await supabase
+        .from('workflow_execute')
+        .select('*', { count: 'exact', head: true })
+        .eq('organisation_id', profile.organization_id)
+      
+      if (executedError) {
+        console.error('Error fetching executions count:', executedError)
+        throw executedError
+      }
+      
+      // Fetch total files generated (SUCCESS status)
+      const { count: filesGenerated, error: filesError } = await supabase
+        .from('workflow_execute')
+        .select('*', { count: 'exact', head: true })
+        .eq('organisation_id', profile.organization_id)
+        .eq('status', 'SUCCESS')
+      
+      if (filesError) {
+        console.error('Error fetching files count:', filesError)
+        throw filesError
+      }
+      
+      console.log('CLIENT stats fetched:', {
+        workflowsCreated: workflowsCreated || 0,
+        workflowsExecuted: workflowsExecuted || 0,
+        filesGenerated: filesGenerated || 0
+      })
+      
+      setClientStats({
+        totalWorkflowsCreated: workflowsCreated || 0,
+        totalWorkflowsExecuted: workflowsExecuted || 0,
+        totalFilesGenerated: filesGenerated || 0,
+        loading: false,
+        error: null
+      })
+      
+    } catch (error) {
+      console.error('Error in fetchClientStats:', error)
+      setClientStats(prev => ({
+        ...prev,
+        loading: false,
+        error: 'Failed to load statistics'
+      }))
+    }
+  }, [user?.id, profile?.organization_id, profile?.category])
+
+  // Function to fetch PROVIDER dashboard statistics
+  const fetchProviderStats = useCallback(async () => {
+    if (!user?.id || profile?.category !== 'PROVIDER') {
+      setProviderStats(prev => ({ ...prev, loading: false }))
+      return
+    }
+    
+    try {
+      setProviderStats(prev => ({ ...prev, loading: true, error: null }))
+      
+      const supabase = createClient()
+      
+      console.log('Fetching PROVIDER stats for user:', user.id)
+      
+      // Fetch total organizations onboarded (count from organizations table)
+      const { count: organizationsCount, error: organizationsError } = await supabase
+        .from('organizations')
+        .select('*', { count: 'exact', head: true })
+      
+      if (organizationsError) {
+        console.error('Error fetching organizations count:', organizationsError)
+        throw organizationsError
+      }
+      
+      // Fetch total workflows created (count from workflows table irrespective of organization_id)
+      const { count: workflowsCreated, error: workflowsError } = await supabase
+        .from('workflows')
+        .select('*', { count: 'exact', head: true })
+      
+      if (workflowsError) {
+        console.error('Error fetching workflows count:', workflowsError)
+        throw workflowsError
+      }
+      
+      // Fetch total workflows executed (count from workflow_execute table irrespective of organization_id)
+      const { count: workflowsExecuted, error: executedError } = await supabase
+        .from('workflow_execute')
+        .select('*', { count: 'exact', head: true })
+      
+      if (executedError) {
+        console.error('Error fetching executions count:', executedError)
+        throw executedError
+      }
+      
+      // Fetch total files generated (count from workflow_execute table with status SUCCESS irrespective of organization_id)
+      const { count: filesGenerated, error: filesError } = await supabase
+        .from('workflow_execute')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'SUCCESS')
+      
+      if (filesError) {
+        console.error('Error fetching files count:', filesError)
+        throw filesError
+      }
+      
+      console.log('PROVIDER stats fetched:', {
+        organizationsCount: organizationsCount || 0,
+        workflowsCreated: workflowsCreated || 0,
+        workflowsExecuted: workflowsExecuted || 0,
+        filesGenerated: filesGenerated || 0
+      })
+      
+      setProviderStats({
+        totalOrganizationsOnboarded: organizationsCount || 0,
+        totalWorkflowsCreated: workflowsCreated || 0,
+        totalWorkflowsExecuted: workflowsExecuted || 0,
+        totalFilesGenerated: filesGenerated || 0,
+        loading: false,
+        error: null
+      })
+      
+    } catch (error) {
+      console.error('Error in fetchProviderStats:', error)
+      setProviderStats(prev => ({
+        ...prev,
+        loading: false,
+        error: 'Failed to load statistics'
+      }))
+    }
+  }, [user?.id, profile?.category])
+
+  // Function to fetch organizations for Clients tab
+  const fetchOrganizations = useCallback(async () => {
+    if (!user?.id || !profile?.permissions?.includes('VIEW_CLIENTS')) {
+      setOrganizationsLoading(false)
+      return
+    }
+    
+    try {
+      setOrganizationsLoading(true)
+      setOrganizationsError(null)
+      
+      const supabase = createClient()
+      
+      console.log('Fetching organizations for Clients tab')
+      
+      // Fetch all organizations
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name, created_at')
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('Error fetching organizations:', error)
+        setOrganizationsError('Failed to load organizations')
+        return
+      }
+      
+      console.log('Organizations fetched:', data?.length || 0)
+      setOrganizations(data || [])
+      
+    } catch (error) {
+      console.error('Error in fetchOrganizations:', error)
+      setOrganizationsError('An error occurred while loading organizations')
+    } finally {
+      setOrganizationsLoading(false)
+    }
+  }, [user?.id, profile?.permissions])
+
+  // Fetch CLIENT stats when dashboard is accessed and user is CLIENT
+  useEffect(() => {
+    if (activeTab === 'dashboard' && user && profile && profile.category === 'CLIENT') {
+      fetchClientStats()
+    }
+  }, [activeTab, user, profile, fetchClientStats])
+
+  // Fetch PROVIDER stats when dashboard is accessed and user is PROVIDER
+  useEffect(() => {
+    if (activeTab === 'dashboard' && user && profile && profile.category === 'PROVIDER') {
+      fetchProviderStats()
+    }
+  }, [activeTab, user, profile, fetchProviderStats])
+
+  // Fetch organizations when switching to clients tab
+  useEffect(() => {
+    if (activeTab === 'clients' && user && profile) {
+      fetchOrganizations()
+    }
+  }, [activeTab, user, profile, fetchOrganizations])
 
   // Handler for workflow requests tab change
   const handleWorkflowRequestsTabChange = (tab: string) => {
@@ -1177,6 +1404,20 @@ export default function DashboardPage() {
       })
     }
 
+    // Clients - Show for users with VIEW_CLIENTS permission
+    if (permissions.includes('VIEW_CLIENTS')) {
+      items.push({
+        id: 'clients',
+        name: 'Clients',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        ),
+        permission: 'VIEW_CLIENTS'
+      })
+    }
+
     // Team Management - Show for users with ASSIGN_AND_APPROVE permission
     if (permissions.includes('ASSIGN_AND_APPROVE')) {
       items.push({
@@ -1458,7 +1699,7 @@ export default function DashboardPage() {
                       : 'You are successfully authenticated and ready to explore.'
                     }
                   </p>
-                  {profile && (
+                  {/* {profile && (
                     <div className="text-sm text-gray-500 mt-1 space-y-1">
                       <p>
                         Role: <span className="font-medium capitalize">{profile.role}</span>
@@ -1474,79 +1715,246 @@ export default function DashboardPage() {
                         </p>
                       )}
                     </div>
-                  )}
+                  )} */}
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-600">Status</p>
-                        <p className="text-2xl font-semibold text-gray-900">
-                          {profile?.role === 'PENDING' ? 'Pending' : (profile?.status === 1 ? 'Active' : 'Inactive')}
-                        </p>
+                {/* Stats Grid - CLIENT, PROVIDER specific or default */}
+                {profile?.category === 'CLIENT' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    {/* Total Workflows Created */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Total Workflows Created</p>
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {clientStats.loading ? (
+                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></span>
+                            ) : clientStats.error ? (
+                              <span className="text-red-500 text-sm">Error</span>
+                            ) : (
+                              clientStats.totalWorkflowsCreated
+                            )}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-[#5146E5]/10 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-600">Role</p>
-                        <p className="text-2xl font-semibold text-gray-900 capitalize">
-                          {profileLoading ? 'Loading...' : (profile?.role || 'User')}
-                        </p>
+                    {/* Total Workflows Executed */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Total Workflows Executed</p>
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {clientStats.loading ? (
+                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></span>
+                            ) : clientStats.error ? (
+                              <span className="text-red-500 text-sm">Error</span>
+                            ) : (
+                              clientStats.totalWorkflowsExecuted
+                            )}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-600">Member Since</p>
-                        <p className="text-2xl font-semibold text-gray-900">
-                          {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A'}
-                        </p>
+                    {/* Total Files Generated */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Total Files Generated</p>
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {clientStats.loading ? (
+                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></span>
+                            ) : clientStats.error ? (
+                              <span className="text-red-500 text-sm">Error</span>
+                            ) : (
+                              clientStats.totalFilesGenerated
+                            )}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
+                ) : profile?.category === 'PROVIDER' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    {/* Total Organizations Onboarded */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Total Organizations Onboarded</p>
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {providerStats.loading ? (
+                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600"></span>
+                            ) : providerStats.error ? (
+                              <span className="text-red-500 text-sm">Error</span>
+                            ) : (
+                              providerStats.totalOrganizationsOnboarded
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
-                  {/* Category Card */}
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                        </svg>
+                    {/* Total Workflows Created */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Total Workflows Created</p>
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {providerStats.loading ? (
+                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></span>
+                            ) : providerStats.error ? (
+                              <span className="text-red-500 text-sm">Error</span>
+                            ) : (
+                              providerStats.totalWorkflowsCreated
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-gray-600">Category</p>
-                        <p className="text-2xl font-semibold text-gray-900 capitalize">
-                          {profileLoading ? 'Loading...' : (profile?.category || 'Not Set')}
-                        </p>
+                    </div>
+
+                    {/* Total Workflows Executed */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Total Workflows Executed</p>
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {providerStats.loading ? (
+                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></span>
+                            ) : providerStats.error ? (
+                              <span className="text-red-500 text-sm">Error</span>
+                            ) : (
+                              providerStats.totalWorkflowsExecuted
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Total Files Generated */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Total Files Generated</p>
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {providerStats.loading ? (
+                              <span className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></span>
+                            ) : providerStats.error ? (
+                              <span className="text-red-500 text-sm">Error</span>
+                            ) : (
+                              providerStats.totalFilesGenerated
+                            )}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Status</p>
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {profile?.role === 'PENDING' ? 'Pending' : (profile?.status === 1 ? 'Active' : 'Inactive')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-[#5146E5]/10 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-[#5146E5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Role</p>
+                          <p className="text-2xl font-semibold text-gray-900 capitalize">
+                            {profileLoading ? 'Loading...' : (profile?.role || 'User')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Member Since</p>
+                          <p className="text-2xl font-semibold text-gray-900">
+                            {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Category Card */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                          </svg>
+                        </div>
+                        <div className="ml-4">
+                          <p className="text-sm font-medium text-gray-600">Category</p>
+                          <p className="text-2xl font-semibold text-gray-900 capitalize">
+                            {profileLoading ? 'Loading...' : (profile?.category || 'Not Set')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Permissions Section */}
-                {profile?.permissions && profile.permissions.length > 0 && (
+                {/* {profile?.permissions && profile.permissions.length > 0 && (
                   <div className="mt-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Permissions</h3>
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -1567,7 +1975,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                )}
+                )} */}
 
                 {/* Empty Permissions State */}
                 {profile?.permissions && profile.permissions.length === 0 && (
@@ -3457,8 +3865,114 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Clients Section */}
+          {activeTab === 'clients' && (
+            <div className="space-y-6">
+              {/* Clients Header */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Clients</h2>
+                    <p className="text-gray-600">View all onboarded organizations and their details</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Organizations Table */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Organizations</h3>
+                    <div className="text-sm text-gray-500">
+                      {organizations.length} organization{organizations.length !== 1 ? 's' : ''} found
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date of Joining</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {organizationsLoading ? (
+                        <tr>
+                          <td colSpan={2} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#5146E5]"></div>
+                              <span>Loading organizations...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : organizationsError ? (
+                        <tr>
+                          <td colSpan={2} className="px-6 py-8 text-center text-red-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                              <span>{organizationsError}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : organizations.length === 0 ? (
+                        <tr>
+                          <td colSpan={2} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex flex-col items-center space-y-3">
+                              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-gray-500 font-medium">No organizations found</p>
+                                <p className="text-sm text-gray-400 mt-1">No organizations have been onboarded yet</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        organizations.map((organization, index) => (
+                          <tr key={organization.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="w-10 h-10 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                                  {organization.name ? organization.name.substring(0, 2).toUpperCase() : 'ORG'}
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">{organization.name}</div>
+                                  <div className="text-sm text-gray-500">ID: {organization.id.substring(0, 8)}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(organization.created_at).toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Other tab content placeholders */}
-          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && activeTab !== 'workflows' && activeTab !== 'workflow-requests' && activeTab !== 'create-listings' && activeTab !== 'generated-files' && (
+          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && activeTab !== 'workflows' && activeTab !== 'workflow-requests' && activeTab !== 'create-listings' && activeTab !== 'generated-files' && activeTab !== 'clients' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
               <div className="text-center">
                 <h3 className="text-xl font-semibold text-gray-900 mb-2 capitalize">
