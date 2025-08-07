@@ -84,6 +84,15 @@ export default function DashboardPage() {
     templateFile: null as File | null
   })
 
+  // CLIENT dashboard statistics states
+  const [clientStats, setClientStats] = useState({
+    totalWorkflowsCreated: 0,
+    totalWorkflowsExecuted: 0,
+    totalFilesGenerated: 0,
+    loading: true,
+    error: null as string | null
+  })
+
   // Toast notification states
   const [toasts, setToasts] = useState<Array<{
     id: string
@@ -332,6 +341,13 @@ export default function DashboardPage() {
       fetchWorkflowExecutions()
     }
   }, [activeTab, user, profile, fetchActiveWorkflows, fetchWorkflowExecutions])
+
+  // Fetch workflow executions when switching to generated-files tab
+  useEffect(() => {
+    if (activeTab === 'generated-files' && user && profile) {
+      fetchWorkflowExecutions()
+    }
+  }, [activeTab, user, profile, fetchWorkflowExecutions])
 
   // Function to fetch workflow requests
   const fetchWorkflowRequests = async (status?: string) => {
@@ -1099,6 +1115,20 @@ export default function DashboardPage() {
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+        ),
+        permission: 'ADD_TRIGGER_LISTING'
+      })
+    }
+
+    // Generated Files - Show for users with ADD_TRIGGER_LISTING permission
+    if (permissions.includes('ADD_TRIGGER_LISTING')) {
+      items.push({
+        id: 'generated-files',
+        name: 'Generated Files',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         ),
         permission: 'ADD_TRIGGER_LISTING'
@@ -3232,8 +3262,203 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Generated Files Section */}
+          {activeTab === 'generated-files' && (
+            <div className="space-y-6">
+              {/* Generated Files Header */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#5146E5] to-[#7C3AED] rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Generated Files</h2>
+                    <p className="text-gray-600">View and download all successfully generated files</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Generated Files Table */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Successfully Generated Files</h3>
+                    <div className="text-sm text-gray-500">
+                      {workflowExecutions.filter(exec => exec.status === 'SUCCESS').length} successful execution{workflowExecutions.filter(exec => exec.status === 'SUCCESS').length !== 1 ? 's' : ''} found
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Executed By</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Template File</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Executed At</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {workflowExecutionsLoading ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#5146E5]"></div>
+                              <span>Loading generated files...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : workflowExecutionsError ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-red-500">
+                            <div className="flex items-center justify-center space-x-2">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                              <span>{workflowExecutionsError}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : workflowExecutions.filter(exec => exec.status === 'SUCCESS').length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                            <div className="flex flex-col items-center space-y-3">
+                              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-gray-500 font-medium">No generated files found</p>
+                                <p className="text-sm text-gray-400 mt-1">No successful workflow executions have generated files yet</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        workflowExecutions
+                          .filter(execution => execution.status === 'SUCCESS')
+                          .map((execution, index) => {
+                            const workflow = workflowExecutionWorkflows[execution.workflow_id]
+                            const executedByUser = workflowExecutionUsers[execution.executed_by]
+                            
+                            return (
+                              <tr key={execution.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center text-white font-medium text-sm">
+                                      {workflow?.workflow_name ? workflow.workflow_name.substring(0, 2).toUpperCase() : 'WF'}
+                                    </div>
+                                    <div className="ml-4">
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {workflow?.workflow_name || 'Unknown Workflow'}
+                                      </div>
+                                      <div className="text-sm text-gray-500">
+                                        Brand: {workflow?.brand_name || 'Unknown'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  {executedByUser ? (
+                                    <div className="flex items-center">
+                                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                        {executedByUser.full_name
+                                          ? executedByUser.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                          : executedByUser.first_name && executedByUser.last_name
+                                          ? `${executedByUser.first_name[0]}${executedByUser.last_name[0]}`.toUpperCase()
+                                          : executedByUser.email.substring(0, 2).toUpperCase()
+                                        }
+                                      </div>
+                                      <div>
+                                        <div className="text-sm font-medium text-gray-900">
+                                          {executedByUser.full_name ||
+                                           (executedByUser.first_name && executedByUser.last_name
+                                             ? `${executedByUser.first_name} ${executedByUser.last_name}`
+                                             : 'Unknown User')}
+                                        </div>
+                                        <div className="text-xs text-gray-500">{executedByUser.email}</div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center">
+                                      <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center text-white font-medium text-xs mr-3">
+                                        ?
+                                      </div>
+                                      <div>
+                                        <div className="text-sm font-medium text-gray-900">Unknown User</div>
+                                        <div className="text-xs text-gray-500">
+                                          {execution.executed_by ? `ID: ${execution.executed_by.substring(0, 8)}` : 'No user ID'}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  {execution.template_file ? (
+                                    <div className="flex items-center">
+                                      <svg className="w-4 h-4 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                      <a
+                                        href={execution.template_file}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                      >
+                                        View Template
+                                      </a>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-gray-400">No template</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {new Date(execution.created_at).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                    SUCCESS
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      onClick={() => handleDownloadFiles(execution)}
+                                      data-download-files={execution.id}
+                                      className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                                    >
+                                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m0 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                      DOWNLOAD FILES
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Other tab content placeholders */}
-          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && activeTab !== 'workflows' && activeTab !== 'workflow-requests' && activeTab !== 'create-listings' && (
+          {activeTab !== 'dashboard' && activeTab !== 'team' && activeTab !== 'account-settings' && activeTab !== 'workflows' && activeTab !== 'workflow-requests' && activeTab !== 'create-listings' && activeTab !== 'generated-files' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
               <div className="text-center">
                 <h3 className="text-xl font-semibold text-gray-900 mb-2 capitalize">
