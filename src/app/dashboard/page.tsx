@@ -998,12 +998,15 @@ export default function DashboardPage() {
         templateFile: null
       })
       
+      // Refresh the workflow executions list to show the new entry
+      await fetchWorkflowExecutions()
+      
       // Show success message
-      alert(`Workflow "${selectedWorkflowForRun.workflow_name || 'Unnamed Workflow'}" has been added to the execution queue successfully!`)
+      showToast('success', 'Added to Queue', `Workflow "${selectedWorkflowForRun.workflow_name || 'Unnamed Workflow'}" has been added to the execution queue successfully!`)
       
     } catch (error) {
       console.error('Error adding to execution queue:', error)
-      alert('An error occurred while adding to execution queue. Please try again.')
+      showToast('error', 'Queue Error', 'An error occurred while adding to execution queue. Please try again.')
     } finally {
       // Reset button state
       const submitButton = document.querySelector('[data-execution-queue-button]') as HTMLButtonElement
@@ -1115,15 +1118,212 @@ export default function DashboardPage() {
     }
   }
 
+  // Enhanced download utility function with Google Sheets handling
+  const downloadFileFromUrl = async (url: string, filename?: string): Promise<boolean> => {
+    const finalFilename = filename || `download_${Date.now()}`
+    
+    console.log(`🔽 Starting download: ${finalFilename}`)
+    console.log(`🔗 URL: ${url}`)
+    
+    // Special handling for Google Sheets URLs
+    if (url.includes('docs.google.com/spreadsheets/d/')) {
+      console.log('📊 Google Sheets URL detected, using iframe method directly')
+      const result = await downloadViaIframe(url, finalFilename)
+      console.log(`📊 Google Sheets download result: ${result}`)
+      return result
+    }
+    
+    // Strategy 1: Try direct fetch and blob download for other URLs
+    try {
+      console.log('🌐 Attempting fetch download...')
+      const response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/octet-stream, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, */*',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      
+      console.log(`💾 Creating download link for: ${finalFilename}`)
+      
+      // Create a temporary anchor element to trigger download
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = finalFilename
+      link.style.display = 'none'
+      
+      // Append to body, click, and remove
+      document.body.appendChild(link)
+      link.click()
+      
+      // Wait a bit before removing the link to ensure download starts
+      await new Promise(resolve => setTimeout(resolve, 500))
+      document.body.removeChild(link)
+      
+      // Clean up the object URL after a longer delay
+      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 2000)
+      
+      // Add delay to ensure download has started before returning success
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
+      console.log(`✅ Fetch download completed: ${finalFilename}`)
+      return true
+    } catch (fetchError) {
+      console.log('❌ Fetch method failed, trying iframe method:', fetchError)
+      
+      // Strategy 2: Use hidden iframe for download (avoids new tabs completely)
+      const result = await downloadViaIframe(url, finalFilename)
+      console.log(`🖼️ Iframe download result: ${result}`)
+      return result
+    }
+  }
+
+  // Download via hidden anchor element (works for most URLs including Google Sheets)
+  const downloadViaIframe = (url: string, filename: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      try {
+        // For Google Sheets, we'll use a direct anchor approach
+        if (url.includes('docs.google.com/spreadsheets/d/')) {
+          console.log('Using direct anchor download for Google Sheets')
+          
+          // Create a temporary anchor element
+          const link = document.createElement('a')
+          link.href = url
+          link.download = filename
+          link.target = '_self' // Ensure it doesn't open in new tab
+          link.style.display = 'none'
+          
+          // Add to DOM, click, and remove
+          document.body.appendChild(link)
+          
+          // Use a timeout to ensure the link is properly added to DOM
+          setTimeout(() => {
+            link.click()
+            setTimeout(() => {
+              if (link.parentNode) {
+                document.body.removeChild(link)
+              }
+              resolve(true)
+            }, 100)
+          }, 10)
+          
+          return
+        }
+        
+        // For other URLs, try iframe approach
+        const iframe = document.createElement('iframe')
+        iframe.style.display = 'none'
+        iframe.style.visibility = 'hidden'
+        iframe.style.position = 'absolute'
+        iframe.style.left = '-9999px'
+        iframe.style.top = '-9999px'
+        iframe.style.width = '1px'
+        iframe.style.height = '1px'
+        
+        // Set up event listeners
+        let resolved = false
+        const cleanup = () => {
+          if (iframe.parentNode) {
+            document.body.removeChild(iframe)
+          }
+        }
+        
+        iframe.onload = () => {
+          if (!resolved) {
+            resolved = true
+            setTimeout(cleanup, 2000)
+            resolve(true)
+          }
+        }
+        
+        iframe.onerror = () => {
+          if (!resolved) {
+            resolved = true
+            cleanup()
+            // If iframe fails, try direct anchor approach as fallback
+            console.log('Iframe failed, trying direct anchor approach')
+            const link = document.createElement('a')
+            link.href = url
+            link.download = filename
+            link.target = '_self'
+            link.style.display = 'none'
+            document.body.appendChild(link)
+            link.click()
+            setTimeout(() => {
+              if (link.parentNode) {
+                document.body.removeChild(link)
+              }
+            }, 100)
+            resolve(true)
+          }
+        }
+        
+        // Timeout fallback
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true
+            cleanup()
+            resolve(true)
+          }
+        }, 3000)
+        
+        // Append iframe and set source
+        document.body.appendChild(iframe)
+        iframe.src = url
+        
+      } catch (error) {
+        console.error('Download error:', error)
+        // Final fallback - direct anchor approach
+        try {
+          const link = document.createElement('a')
+          link.href = url
+          link.download = filename
+          link.target = '_self'
+          link.style.display = 'none'
+          document.body.appendChild(link)
+          link.click()
+          setTimeout(() => {
+            if (link.parentNode) {
+              document.body.removeChild(link)
+            }
+          }, 100)
+          resolve(true)
+        } catch (finalError) {
+          console.error('Final fallback failed:', finalError)
+          resolve(false)
+        }
+      }
+    })
+  }
+
   // Handler to download files from generated_files
   const handleDownloadFiles = async (execution: {
     id: string;
     generated_files?: string[];
   }) => {
+    console.log('=== DOWNLOAD DEBUG START ===')
+    console.log('Execution object:', execution)
+    console.log('Generated files:', execution.generated_files)
+    console.log('Generated files type:', typeof execution.generated_files)
+    console.log('Generated files length:', execution.generated_files?.length)
+    
     if (!execution.generated_files || execution.generated_files.length === 0) {
       showToast('warning', 'No Files Available', 'No files available for download.')
       return
     }
+
+    // Check if generated_files contains nested arrays
+    const firstItem = execution.generated_files[0]
+    console.log('First item:', firstItem)
+    console.log('First item type:', typeof firstItem)
+    console.log('Is first item array?', Array.isArray(firstItem))
 
     try {
       // Show loading state on the button
@@ -1138,46 +1338,94 @@ export default function DashboardPage() {
         `
       }
 
-      console.log('Downloading files:', execution.generated_files)
+      let successCount = 0
+      let failCount = 0
 
-      // Download each file
+      // Download each file with enhanced debugging
       for (let i = 0; i < execution.generated_files.length; i++) {
         const fileUrl = execution.generated_files[i]
         
+        console.log(`\n--- Processing file ${i + 1}/${execution.generated_files.length} ---`)
+        console.log('File URL:', fileUrl)
+        console.log('File URL type:', typeof fileUrl)
+        
         if (!fileUrl) {
           console.warn(`Skipping empty file URL at index ${i}`)
+          failCount++
           continue
         }
 
         try {
-          console.log(`Downloading file ${i + 1}/${execution.generated_files.length}:`, fileUrl)
-          
           // Convert Google Sheets URL to export format
           let downloadUrl = fileUrl
+          let filename = `file_${i + 1}_${Date.now()}`
+          
           if (fileUrl.includes('docs.google.com/spreadsheets/d/')) {
             // Extract the file ID from the URL
             const fileIdMatch = fileUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)
             if (fileIdMatch && fileIdMatch[1]) {
               const fileId = fileIdMatch[1]
               downloadUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`
+              filename = `spreadsheet_${fileId.substring(0, 8)}_${i + 1}.xlsx`
+            }
+          } else {
+            // Try to extract filename from URL
+            const urlParts = fileUrl.split('/')
+            const lastPart = urlParts[urlParts.length - 1]
+            if (lastPart && lastPart.includes('.')) {
+              const baseName = lastPart.split('?')[0] // Remove query parameters
+              const nameParts = baseName.split('.')
+              const extension = nameParts.pop()
+              const nameWithoutExt = nameParts.join('.')
+              filename = `${nameWithoutExt}_${i + 1}.${extension}`
+            } else {
+              filename = `download_${i + 1}_${Date.now()}.xlsx`
             }
           }
 
-          // Open in new tab to trigger download
-          window.open(downloadUrl, '_blank')
+          console.log('Download URL:', downloadUrl)
+          console.log('Filename:', filename)
 
-          // Add a small delay between downloads to avoid overwhelming the browser
+          // Use enhanced download function
+          const success = await downloadFileFromUrl(downloadUrl, filename)
+          
+          console.log(`Download result for file ${i + 1}:`, success)
+          
+          if (success) {
+            successCount++
+            console.log(`✅ Successfully downloaded file ${i + 1}: ${filename}`)
+          } else {
+            failCount++
+            console.log(`❌ Download failed for file ${i + 1}:`, downloadUrl)
+          }
+
+          // Add a longer delay between downloads to ensure each download completes
           if (i < execution.generated_files.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500))
+            console.log(`Waiting 2 seconds before next download...`)
+            await new Promise(resolve => setTimeout(resolve, 2000))
           }
         } catch (fileError) {
           console.error(`Error downloading file ${i + 1}:`, fileError)
-          // Continue with other files even if one fails
+          failCount++
         }
       }
 
-      // Show completion toast after all downloads are processed
-      showToast('success', 'Files Downloaded', `Successfully downloaded ${execution.generated_files.length} file(s). Check your downloads folder.`)
+      console.log(`\n=== DOWNLOAD SUMMARY ===`)
+      console.log(`Total files processed: ${execution.generated_files.length}`)
+      console.log(`Successful downloads: ${successCount}`)
+      console.log(`Failed downloads: ${failCount}`)
+      console.log('=== DOWNLOAD DEBUG END ===\n')
+
+      // Show completion toast with success/failure info
+      if (successCount > 0 && failCount === 0) {
+        showToast('success', 'Files Downloaded Successfully', `Successfully downloaded ${successCount} file(s). Check your downloads folder.`)
+      } else if (successCount > 0 && failCount > 0) {
+        showToast('warning', 'Partial Download Success', `Downloaded ${successCount} file(s) successfully. ${failCount} file(s) failed.`)
+      } else if (failCount > 0) {
+        showToast('error', 'Download Failed', `Failed to download ${failCount} file(s). Please check console for details.`)
+      } else {
+        showToast('error', 'Download Failed', 'No files could be downloaded. Please try again.')
+      }
 
     } catch (error) {
       console.error('Error downloading files:', error)
