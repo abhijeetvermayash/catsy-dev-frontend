@@ -1072,7 +1072,7 @@ export default function DashboardPage() {
           const { error: updateError } = await supabase
             .from('workflow_execute')
             .update({
-              generated_files: [responseData.URLs], // Store as array
+              generated_files: responseData.URLs.split(","), // Store as array
               status: 'SUCCESS'
             })
             .eq('id', execution.id)
