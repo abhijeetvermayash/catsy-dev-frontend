@@ -10,6 +10,7 @@ export default function LandingPage() {
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && user) {
@@ -164,34 +165,75 @@ export default function LandingPage() {
               </span>
             </div>
 
-            {/* Navigation Links */}
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 hover:scale-105 relative group">
-                Features
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-purple-600 transition-all duration-300 group-hover:w-full"></span>
-              </a>
-              <a href="#how-it-works" className="text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 hover:scale-105 relative group">
-                How it Works
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-purple-600 transition-all duration-300 group-hover:w-full"></span>
-              </a>
-              <a href="#pricing" className="text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 hover:scale-105 relative group">
-                Pricing
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-purple-600 transition-all duration-300 group-hover:w-full"></span>
-              </a>
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center">
+              {/* Navigation Links */}
+              <div className="items-center space-x-8">
+                <a href="#features" className="text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 hover:scale-105 relative group">
+                  Features
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-purple-600 transition-all duration-300 group-hover:w-full"></span>
+                </a>
+                <a href="#how-it-works" className="text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 hover:scale-105 relative group">
+                  How it Works
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-purple-600 transition-all duration-300 group-hover:w-full"></span>
+                </a>
+                <a href="#pricing" className="text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 hover:scale-105 relative group">
+                  Pricing
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-purple-600 transition-all duration-300 group-hover:w-full"></span>
+                </a>
+              </div>
+
+              {/* Auth Buttons */}
+              <div className="flex items-center space-x-4 ml-8">
+                <Link
+                  href="/auth"
+                  className="text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 hover:scale-105"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/auth"
+                  className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl shadow-purple-500/25"
+                >
+                  Get Started Free
+                </Link>
+              </div>
             </div>
 
-            {/* Auth Buttons */}
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/auth"
-                className="text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 hover:scale-105"
+            {/* Mobile menu button */}
+            <div className="-mr-2 flex md:hidden">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                type="button"
+                className="bg-white/80 rounded-md p-2 inline-flex items-center justify-center text-gray-600 hover:text-purple-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-purple-500"
+                aria-controls="mobile-menu"
+                aria-expanded="false"
               >
+                <span className="sr-only">Open main menu</span>
+                <svg className={`${mobileMenuOpen ? 'hidden' : 'block'} h-6 w-6`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                <svg className={`${mobileMenuOpen ? 'block' : 'hidden'} h-6 w-6`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile menu, show/hide based on menu state. */}
+        <div className={`${mobileMenuOpen ? 'block' : 'hidden'} md:hidden`} id="mobile-menu">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+            <a href="#features" className="text-gray-600 hover:text-purple-600 block px-3 py-2 rounded-md text-base font-medium">Features</a>
+            <a href="#how-it-works" className="text-gray-600 hover:text-purple-600 block px-3 py-2 rounded-md text-base font-medium">How it Works</a>
+            <a href="#pricing" className="text-gray-600 hover:text-purple-600 block px-3 py-2 rounded-md text-base font-medium">Pricing</a>
+          </div>
+          <div className="pt-4 pb-3 border-t border-gray-200">
+            <div className="px-5 space-y-3">
+              <Link href="/auth" className="block w-full text-center text-gray-600 hover:text-purple-600 font-medium transition-all duration-300 hover:scale-105 py-2 rounded-md hover:bg-gray-50">
                 Login
               </Link>
-              <Link
-                href="/auth"
-                className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl shadow-purple-500/25"
-              >
+              <Link href="/auth" className="block w-full text-center bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl shadow-purple-500/25">
                 Get Started Free
               </Link>
             </div>
@@ -212,7 +254,7 @@ export default function LandingPage() {
             </div>
 
             {/* Main Headline */}
-            <h1 className={`text-5xl md:text-7xl lg:text-8xl font-bold text-gray-900 mb-8 leading-tight transform transition-all duration-1000 delay-200 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+            <h1 className={`text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold text-gray-900 mb-8 leading-tight transform transition-all duration-1000 delay-200 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
               Stop Drowning in{' '}
               <span className="bg-gradient-to-r from-purple-500 via-indigo-600 to-blue-600 bg-clip-text text-transparent">
                 Spreadsheets
@@ -328,7 +370,7 @@ export default function LandingPage() {
       <section className="py-20 relative" id="features">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-5xl font-bold text-gray-900 mb-6">Why Choose Catsy?</h2>
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">Why Choose Catsy?</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Experience the future of e-commerce automation with our intelligent platform
             </p>
@@ -495,7 +537,7 @@ export default function LandingPage() {
       <section className="py-20 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 relative overflow-hidden">
         <div className="absolute inset-0 bg-black/10"></div>
         <div className="relative max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-5xl md:text-6xl font-bold text-white mb-6">
+          <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-6">
             Ready to Transform Your Business?
           </h2>
           <p className="text-xl text-purple-100 mb-8 max-w-2xl mx-auto">

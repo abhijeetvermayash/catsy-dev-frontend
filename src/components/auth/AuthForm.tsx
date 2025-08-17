@@ -246,8 +246,8 @@ export default function AuthForm() {
       </nav>
 
       {/* Main Content */}
-      <div className="relative z-10 flex items-center justify-start min-h-[calc(100vh-100px)] px-6">
-        <div className="w-full max-w-lg ml-8 lg:ml-16">
+      <div className="relative z-10 flex items-center justify-center lg:justify-start min-h-[calc(100vh-100px)] px-6">
+        <div className="w-full max-w-lg lg:ml-16">
           {/* Already Signed In Banner */}
           {user && (
             <div className="mb-8 p-4 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-lg">
@@ -307,7 +307,7 @@ export default function AuthForm() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {mode === 'signup' && (
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-700 text-sm font-medium mb-2">
                       First name
