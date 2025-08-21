@@ -5264,6 +5264,12 @@ export default function DashboardPage() {
                             User
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Source File URL
+                          </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Template File URL
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Marketplaces
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -5480,6 +5486,68 @@ export default function DashboardPage() {
                                       </div>
                                     </div>
                                   )}
+                                </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                   {workflow.source_file_url ? (
+                                      <div className="flex items-center">
+                                        <svg
+                                          className="w-4 h-4 text-blue-500 mr-2"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                          />
+                                        </svg>
+                                        <a
+                                          href={workflow.source_file_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                          View Source File
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <span className="text-sm text-gray-400">
+                                        Source File missing
+                                      </span>
+                                    )}
+                                </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                   {workflow.template_file_url ? (
+                                      <div className="flex items-center">
+                                        <svg
+                                          className="w-4 h-4 text-blue-500 mr-2"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                          />
+                                        </svg>
+                                        <a
+                                          href={workflow.template_file_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                          View Template File
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <span className="text-sm text-gray-400">
+                                        Template File missing
+                                      </span>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex flex-wrap gap-1">
