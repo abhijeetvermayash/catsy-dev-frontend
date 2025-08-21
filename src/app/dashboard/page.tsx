@@ -716,8 +716,9 @@ export default function DashboardPage() {
         return;
       }
 
-      console.log("Organizations fetched:", data?.length || 0);
-      setOrganizations((data as any[]) || []);
+      const filteredData = data.filter(d => d.name !== "Catsy");
+
+      setOrganizations((filteredData as any[]) || []);
     } catch (error) {
       console.error("Error in fetchOrganizations:", error);
       setOrganizationsError("An error occurred while loading organizations");
@@ -2781,7 +2782,7 @@ export default function DashboardPage() {
                                   Error
                                 </span>
                               ) : (
-                                providerStats.totalOrganizationsOnboarded
+                                providerStats.totalOrganizationsOnboarded - 1
                               )}
                             </p>
                             <span className="text-xs font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
@@ -6686,7 +6687,7 @@ export default function DashboardPage() {
                   <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-semibold text-gray-900">
-                        Organizations
+                        Organizations Using our Product
                       </h3>
                       <div className="text-sm text-gray-500">
                         {organizations.length} organization
