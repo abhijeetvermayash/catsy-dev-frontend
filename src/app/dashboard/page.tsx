@@ -5231,15 +5231,7 @@ export default function DashboardPage() {
                           </button>
                         </nav>
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {workflowRequestsTab === "pending"
-                          ? `${workflowRequests.length} pending workflow${
-                              workflowRequests.length !== 1 ? "s" : ""
-                            }`
-                          : `${workflowRequests.length} total workflow${
-                              workflowRequests.length !== 1 ? "s" : ""
-                            }`}
-                      </div>
+                      
                     </div>
                   </div>
 
