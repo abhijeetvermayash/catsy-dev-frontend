@@ -5124,9 +5124,8 @@ export default function DashboardPage() {
                                   )}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="flex flex-wrap gap-1">
+                                   <div className="flex flex-wrap gap-1">
                                     {workflow.marketplace_channels
-                                      .slice(0, 2)
                                       .map((channel: string) => (
                                         <span
                                           key={channel}
@@ -5135,14 +5134,7 @@ export default function DashboardPage() {
                                           {channel}
                                         </span>
                                       ))}
-                                    {workflow.marketplace_channels.length >
-                                      2 && (
-                                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                                        +
-                                        {workflow.marketplace_channels.length -
-                                          2}
-                                      </span>
-                                    )}
+                                    
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -5554,7 +5546,6 @@ export default function DashboardPage() {
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex flex-wrap gap-1">
                                     {workflow.marketplace_channels
-                                      .slice(0, 2)
                                       .map((channel: string) => (
                                         <span
                                           key={channel}
@@ -5563,14 +5554,6 @@ export default function DashboardPage() {
                                           {channel}
                                         </span>
                                       ))}
-                                    {workflow.marketplace_channels.length >
-                                      2 && (
-                                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                                        +
-                                        {workflow.marketplace_channels.length -
-                                          2}
-                                      </span>
-                                    )}
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -5906,7 +5889,6 @@ export default function DashboardPage() {
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex flex-wrap gap-1">
                                     {workflow.marketplace_channels
-                                      .slice(0, 2)
                                       .map((channel: string) => (
                                         <span
                                           key={channel}
@@ -5915,14 +5897,7 @@ export default function DashboardPage() {
                                           {channel}
                                         </span>
                                       ))}
-                                    {workflow.marketplace_channels.length >
-                                      2 && (
-                                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                                        +
-                                        {workflow.marketplace_channels.length -
-                                          2}
-                                      </span>
-                                    )}
+                                    
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
